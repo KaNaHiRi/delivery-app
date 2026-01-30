@@ -44,6 +44,14 @@ export default function Home() {
     deliveryDate: ''
   });
 
+  // 削除用のstate
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  // 編集用のstate
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   // 入力値の変更ハンドラー
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -73,26 +81,51 @@ export default function Home() {
     return !Object.values(newErrors).some(error => error !== '');
   };
 
-// フォーム送信ハンドラー
+  // フォーム送信ハンドラー（追加と編集の両方に対応）
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     // バリデーションチェック
     if (!validate()) {
       console.log('入力エラーがあります');
-      return;  // エラーがある場合は追加しない
+      return;
     }
 
-    const newDelivery: Delivery = {
-      id: Date.now().toString(),
-      name: formData.name,
-      address: formData.address,
-      status: formData.status,
-      deliveryDate: formData.deliveryDate
-    };
+    if (isEditing && editingId) {
+      // 編集モード：既存データを更新
+      setDeliveries(prev =>
+        prev.map(delivery =>
+          delivery.id === editingId
+            ? {
+                ...delivery,
+                name: formData.name,
+                address: formData.address,
+                status: formData.status,
+                deliveryDate: formData.deliveryDate
+              }
+            : delivery
+        )
+      );
+      console.log('配送先を更新しました:', editingId);
+      
+      // 編集モードを解除
+      setIsEditing(false);
+      setEditingId(null);
+    } else {
+      // 新規追加モード
+      const newDelivery: Delivery = {
+        id: Date.now().toString(),
+        name: formData.name,
+        address: formData.address,
+        status: formData.status,
+        deliveryDate: formData.deliveryDate
+      };
 
-    setDeliveries(prev => [newDelivery, ...prev]);
+      setDeliveries(prev => [newDelivery, ...prev]);
+      console.log('配送先を追加しました:', newDelivery);
+    }
 
+    // フォームをリセット
     setFormData({
       name: '',
       address: '',
@@ -100,14 +133,73 @@ export default function Home() {
       status: 'pending'
     });
 
-    // エラーもリセット
     setErrors({
       name: '',
       address: '',
       deliveryDate: ''
     });
+  };
 
-    console.log('配送先を追加しました:', newDelivery);
+  // 削除確認ダイアログを表示
+  const handleDeleteClick = (id: string) => {
+    setDeleteTargetId(id);
+    setShowDeleteConfirm(true);
+  };
+
+  // 削除実行
+  const handleDeleteConfirm = () => {
+    if (deleteTargetId) {
+      setDeliveries(prev => prev.filter(d => d.id !== deleteTargetId));
+      setShowDeleteConfirm(false);
+      setDeleteTargetId(null);
+      console.log('配送先を削除しました:', deleteTargetId);
+    }
+  };
+
+  // 削除キャンセル
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setDeleteTargetId(null);
+  };
+
+  // 編集モードに切り替え
+  const handleEditClick = (id: string) => {
+    const delivery = deliveries.find(d => d.id === id);
+    if (delivery) {
+      setFormData({
+        name: delivery.name,
+        address: delivery.address,
+        deliveryDate: delivery.deliveryDate,
+        status: delivery.status
+      });
+      setEditingId(id);
+      setIsEditing(true);
+      // エラーをクリア
+      setErrors({
+        name: '',
+        address: '',
+        deliveryDate: ''
+      });
+      // スクロールしてフォームを表示
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // 編集をキャンセル
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setFormData({
+      name: '',
+      address: '',
+      deliveryDate: '',
+      status: 'pending'
+    });
+    setErrors({
+      name: '',
+      address: '',
+      deliveryDate: ''
+    });
   };
 
   // ステータスの日本語表示
@@ -126,7 +218,7 @@ export default function Home() {
   const getStatusColor = (status: DeliveryStatus) => {
     switch (status) {
       case 'pending':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-yellow-100 text-yellow-800';
       case 'in_transit':
         return 'bg-blue-100 text-blue-800';
       case 'completed':
@@ -141,19 +233,18 @@ export default function Home() {
           配送管理システム
         </h1>
         <p className="text-gray-600 mb-8">
-          配送先の追加・管理ができます
+          配送先の追加・編集・削除ができます
         </p>
 
-        {/* 配送先追加フォーム */}
-        <div className="bg-white p-6 rounded-lg shadow mb-6">
+        {/* 配送先追加/編集フォーム */}
+        <div className={`bg-white p-6 rounded-lg shadow mb-6 transition-all ${isEditing ? 'ring-2 ring-blue-500' : ''}`}>
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            新規配送先追加
+            {isEditing ? '配送先の編集' : '新規配送先追加'}
           </h2>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 配送先名 */}
-{/* 配送先名 */}
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                   配送先名 <span className="text-red-500">*</span>
@@ -175,7 +266,6 @@ export default function Home() {
               </div>
 
               {/* 住所 */}
-{/* 住所 */}
               <div>
                 <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
                   住所 <span className="text-red-500">*</span>
@@ -197,7 +287,6 @@ export default function Home() {
               </div>
 
               {/* 配送予定日 */}
-{/* 配送予定日 */}
               <div>
                 <label htmlFor="deliveryDate" className="block text-sm font-medium text-gray-700 mb-2">
                   配送予定日 <span className="text-red-500">*</span>
@@ -236,9 +325,17 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 追加ボタン */}
-{/* 追加ボタン */}
-            <div className="flex justify-end">
+            {/* 追加/更新ボタン */}
+            <div className="flex justify-end gap-3">
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="px-6 py-2 font-medium rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
+                >
+                  キャンセル
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={formData.name === '' || formData.address === '' || formData.deliveryDate === ''}
@@ -248,7 +345,7 @@ export default function Home() {
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
               >
-                追加
+                {isEditing ? '更新' : '追加'}
               </button>
             </div>
           </form>
@@ -259,7 +356,7 @@ export default function Home() {
               デバッグ情報（入力値の確認）
             </h3>
             <pre className="text-xs text-gray-600 overflow-x-auto">
-              {JSON.stringify(formData, null, 2)}
+              {JSON.stringify({ formData, isEditing, editingId }, null, 2)}
             </pre>
           </div>
         </div>
@@ -292,6 +389,9 @@ export default function Home() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     配送予定日
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    操作
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -315,6 +415,22 @@ export default function Home() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {delivery.deliveryDate}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleEditClick(delivery.id)}
+                          className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                        >
+                          編集
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(delivery.id)}
+                          className="text-red-600 hover:text-red-800 font-medium transition-colors"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -336,9 +452,23 @@ export default function Home() {
                 <p className="text-sm text-gray-500 mb-1">
                   {delivery.address}
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 mb-3">
                   配送予定日: {delivery.deliveryDate}
                 </p>
+                <div className="flex gap-3 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => handleEditClick(delivery.id)}
+                    className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors"
+                  >
+                    編集
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClick(delivery.id)}
+                    className="text-red-600 hover:text-red-800 font-medium text-sm transition-colors"
+                  >
+                    削除
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -346,31 +476,61 @@ export default function Home() {
 
         {/* 進捗表示 */}
         <div className="mt-8 bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">今日の進捗</h2>
+          <h2 className="text-xl font-semibold mb-4">Day 4の進捗</h2>
           <ul className="space-y-2">
             <li className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              開発環境構築完了
+              配送先削除機能完成
             </li>
             <li className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              TypeScript型定義作成
+              削除確認ダイアログ実装
             </li>
             <li className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              配送先一覧表示機能完成
+              配送先編集機能完成
             </li>
             <li className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              配送先追加フォーム作成
+              編集モード切替実装
             </li>
             <li className="flex items-center">
-              <span className="text-green-500 mr-2">✓</span>
-              フォーム状態管理実装
+              <span className="text-blue-500 mr-2">→</span>
+              次: LocalStorage実装予定
             </li>
           </ul>
         </div>
       </div>
+
+      {/* 削除確認ダイアログ */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
+              削除の確認
+            </h3>
+            <p className="text-gray-600 mb-6">
+              この配送先を削除してもよろしいですか？
+              <br />
+              この操作は取り消せません。
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleDeleteCancel}
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 font-medium transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium transition-colors"
+              >
+                削除する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
