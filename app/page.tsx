@@ -1,11 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Delivery, DeliveryStatus } from './types/delivery';
 
-export default function Home() {
-  // ダミーデータ（3件の配送先）
-  const [deliveries, setDeliveries] = useState<Delivery[]>([
+// LocalStorage のキー名
+const STORAGE_KEY = 'delivery_app_data';
+
+// LocalStorage からデータを読み込む関数
+const loadFromLocalStorage = (): Delivery[] => {
+  // サーバーサイドレンダリング時は何もしない
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    if (data) {
+      const parsed = JSON.parse(data);
+      console.log('LocalStorageからデータを読み込みました:', parsed.length + '件');
+      return parsed;
+    }
+  } catch (error) {
+    console.error('LocalStorage読み込みエラー:', error);
+  }
+  
+  // データがない場合は初期データを返す
+  return [
     {
       id: '1',
       name: '山田商店',
@@ -27,7 +47,29 @@ export default function Home() {
       status: 'completed',
       deliveryDate: '2026-01-28'
     }
-  ]);
+  ];
+};
+
+// LocalStorage にデータを保存する関数
+const saveToLocalStorage = (data: Delivery[]) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    console.log('LocalStorageに保存しました:', data.length + '件');
+  } catch (error) {
+    console.error('LocalStorage保存エラー:', error);
+  }
+};
+
+export default function Home() {
+  // 配送先データ（初期値は空）
+  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  
+  // マウント状態の管理（初回読み込み制御用）
+  const [isMounted, setIsMounted] = useState(false);
 
   // フォームの状態管理
   const [formData, setFormData] = useState({
@@ -52,6 +94,21 @@ export default function Home() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // マウント時にLocalStorageからデータを読み込む
+  useEffect(() => {
+    setIsMounted(true);
+    const loadedData = loadFromLocalStorage();
+    setDeliveries(loadedData);
+  }, []); // 空配列 = 初回マウント時のみ実行
+
+  // deliveries が変更されたら自動保存
+  useEffect(() => {
+    // 初回マウント時は保存しない（無限ループ防止）
+    if (isMounted && deliveries.length > 0) {
+      saveToLocalStorage(deliveries);
+    }
+  }, [deliveries, isMounted]); // deliveries が変わったら実行
+
   // 入力値の変更ハンドラー
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -64,7 +121,6 @@ export default function Home() {
     // デバッグ用：入力値をコンソールに表示
     console.log('フィールド名:', name);
     console.log('入力値:', value);
-    console.log('全体のフォームデータ:', { ...formData, [name]: value });
   };
 
   // バリデーション関数
@@ -202,6 +258,39 @@ export default function Home() {
     });
   };
 
+  // 全データをリセット
+  const handleResetData = () => {
+    if (window.confirm('すべてのデータを削除してもよろしいですか？\nこの操作は取り消せません。')) {
+      const initialData: Delivery[] = [
+        {
+          id: '1',
+          name: '山田商店',
+          address: '東京都渋谷区神南1-2-3',
+          status: 'pending',
+          deliveryDate: '2026-02-01'
+        },
+        {
+          id: '2',
+          name: '鈴木物流センター',
+          address: '大阪府大阪市北区梅田2-3-4',
+          status: 'in_transit',
+          deliveryDate: '2026-01-30'
+        },
+        {
+          id: '3',
+          name: '佐藤工業株式会社',
+          address: '愛知県名古屋市中区栄3-4-5',
+          status: 'completed',
+          deliveryDate: '2026-01-28'
+        }
+      ];
+      
+      setDeliveries(initialData);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
+      console.log('データをリセットしました');
+    }
+  };
+
   // ステータスの日本語表示
   const getStatusLabel = (status: DeliveryStatus) => {
     switch (status) {
@@ -233,7 +322,7 @@ export default function Home() {
           配送管理システム
         </h1>
         <p className="text-gray-600 mb-8">
-          配送先の追加・編集・削除ができます
+          配送先の追加・編集・削除ができます（データは自動保存されます）
         </p>
 
         {/* 配送先追加/編集フォーム */}
@@ -353,23 +442,51 @@ export default function Home() {
           {/* デバッグ表示（開発中のみ） */}
           <div className="mt-6 p-4 bg-gray-50 rounded-md">
             <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              デバッグ情報（入力値の確認）
+              デバッグ情報
             </h3>
-            <pre className="text-xs text-gray-600 overflow-x-auto">
-              {JSON.stringify({ formData, isEditing, editingId }, null, 2)}
-            </pre>
+            <div className="space-y-2">
+              <div className="text-xs text-gray-600">
+                <span className="font-semibold">フォームデータ:</span>
+                <pre className="mt-1 overflow-x-auto">
+                  {JSON.stringify(formData, null, 2)}
+                </pre>
+              </div>
+              <div className="text-xs text-gray-600">
+                <span className="font-semibold">編集モード:</span> {isEditing ? 'ON' : 'OFF'}
+              </div>
+              <div className="text-xs text-gray-600">
+                <span className="font-semibold">配送先件数:</span> {deliveries.length}件
+              </div>
+              <div className="text-xs text-gray-600">
+                <span className="font-semibold">LocalStorage:</span>{' '}
+                {typeof window !== 'undefined' && localStorage.getItem(STORAGE_KEY) 
+                  ? '保存済み ✓' 
+                  : '未保存'}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* 配送先一覧 */}
         <div className="bg-white rounded-lg shadow">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">
-              配送先一覧
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              全 {deliveries.length} 件
-            </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  配送先一覧
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  全 {deliveries.length} 件
+                </p>
+              </div>
+              {/* リセットボタン追加 */}
+              <button
+                onClick={handleResetData}
+                className="px-4 py-2 text-sm border border-red-300 text-red-600 rounded-md hover:bg-red-50 transition-colors"
+              >
+                データリセット
+              </button>
+            </div>
           </div>
 
           {/* テーブル（PC表示） */}
@@ -476,27 +593,27 @@ export default function Home() {
 
         {/* 進捗表示 */}
         <div className="mt-8 bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">Day 4の進捗</h2>
+          <h2 className="text-xl font-semibold mb-4">Day 5の進捗</h2>
           <ul className="space-y-2">
             <li className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              配送先削除機能完成
+              LocalStorage実装完了
             </li>
             <li className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              削除確認ダイアログ実装
+              自動保存機能実装
             </li>
             <li className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              配送先編集機能完成
+              初期データ読み込み実装
             </li>
             <li className="flex items-center">
               <span className="text-green-500 mr-2">✓</span>
-              編集モード切替実装
+              データリセット機能実装
             </li>
             <li className="flex items-center">
               <span className="text-blue-500 mr-2">→</span>
-              次: LocalStorage実装予定
+              次: 検索・フィルター機能予定
             </li>
           </ul>
         </div>
