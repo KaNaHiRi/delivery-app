@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect} from 'react';
 import { Delivery } from './types/delivery';
 
 const STORAGE_KEY = 'delivery_app_data';
+const FILTERS_STORAGE_KEY = 'delivery_app_filters';
 
 const initialData: Delivery[] = [
   {
@@ -42,7 +43,7 @@ export default function Home() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // 🆕 検索・フィルター用のState
+  // 検索・フィルター用のState
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | Delivery['status']>('');
   const [startDate, setStartDate] = useState('');
@@ -50,7 +51,14 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // LocalStorageから読み込み（初回のみ）
+  // ページネーション用のStatefv
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(5);
+
+  // 一括操作用のState
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // LocalStorageからデータを読み込み（初回のみ）
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -63,6 +71,21 @@ export default function Home() {
       } else {
         setDeliveries(initialData);
       }
+
+      const savedFilters = localStorage.getItem(FILTERS_STORAGE_KEY);
+      if (savedFilters) {
+        try {
+          const filters = JSON.parse(savedFilters);
+          setSearchText(filters.searchText || '');
+          setStatusFilter(filters.statusFilter || '');
+          setStartDate(filters.startDate || '');
+          setEndDate(filters.endDate || '');
+          setSortBy(filters.sortBy || 'date');
+          setSortOrder(filters.sortOrder || 'asc');
+        } catch {
+          // エラー時は何もしない
+        }
+      }
     }
   }, []);
 
@@ -73,39 +96,51 @@ export default function Home() {
     }
   }, [deliveries]);
 
-  // 🆕 フィルター処理（C#のLINQに相当）
+  // 検索条件が変更されたらLocalStorageに保存
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const filters = {
+        searchText,
+        statusFilter,
+        startDate,
+        endDate,
+        sortBy,
+        sortOrder,
+      };
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    }
+  }, [searchText, statusFilter, startDate, endDate, sortBy, sortOrder]);
+
+  // フィルター変更時にページを1に戻す
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, statusFilter, startDate, endDate]);
+
+  // フィルター処理（C#のLINQに相当）
   const getFilteredDeliveries = () => {
     let filtered = [...deliveries];
 
-    // 1. 配送先名での検索（部分一致）
-    // C#: .Where(d => d.name.Contains(searchText))
-    if (searchText) {
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase().trim();
       filtered = filtered.filter((d) =>
-        d.name.toLowerCase().includes(searchText.toLowerCase())
+        d.name.toLowerCase().includes(searchLower)
       );
     }
 
-    // 2. ステータスでのフィルター
-    // C#: .Where(d => statusFilter == "" || d.status == statusFilter)
     if (statusFilter) {
       filtered = filtered.filter((d) => d.status === statusFilter);
     }
 
-    // 3. 配送日での範囲フィルター
-    // C#: .Where(d => d.deliveryDate >= startDate)
     if (startDate) {
       filtered = filtered.filter((d) => d.deliveryDate >= startDate);
     }
-    // C#: .Where(d => d.deliveryDate <= endDate)
     if (endDate) {
       filtered = filtered.filter((d) => d.deliveryDate <= endDate);
     }
 
-    // 4. ソート機能
-    // C#: .OrderBy(d => d.name) または .OrderByDescending(d => d.name)
     filtered.sort((a, b) => {
       let comparison = 0;
-      
+
       if (sortBy === 'name') {
         comparison = a.name.localeCompare(b.name);
       } else {
@@ -118,7 +153,21 @@ export default function Home() {
     return filtered;
   };
 
-  // 🆕 フィルタークリア機能
+  const filteredDeliveries = getFilteredDeliveries();
+
+ // 総ページ数の計算
+const totalPages = Math.ceil(filteredDeliveries.length / pageSize);
+
+// ページネーション処理
+const startIndex = (currentPage - 1) * pageSize;
+const endIndex = startIndex + pageSize;
+const paginatedDeliveries = filteredDeliveries.slice(startIndex, endIndex);
+
+// 現在のページの全アイテムが選択されているか
+const isAllSelected = paginatedDeliveries.length > 0 &&
+  paginatedDeliveries.every((d) => selectedIds.includes(d.id));
+
+  // フィルタークリア機能
   const handleClearFilters = () => {
     setSearchText('');
     setStatusFilter('');
@@ -126,16 +175,17 @@ export default function Home() {
     setEndDate('');
     setSortBy('date');
     setSortOrder('asc');
+    setCurrentPage(1);
   };
 
-  // 🆕 検索結果のハイライト表示
+  // 検索結果のハイライト表示
   const highlightText = (text: string, highlight: string) => {
     if (!highlight.trim()) {
       return text;
     }
     const regex = new RegExp(`(${highlight})`, 'gi');
     const parts = text.split(regex);
-    
+
     return parts.map((part, index) =>
       regex.test(part) ? (
         <span key={index} className="bg-yellow-200 font-bold">
@@ -145,6 +195,53 @@ export default function Home() {
         part
       )
     );
+  };
+
+  // 全選択/全解除
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const currentPageIds = paginatedDeliveries.map((d) => d.id);
+      setSelectedIds(currentPageIds);
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  // 個別選択
+  const handleSelectItem = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter((selectedId) => selectedId !== id));
+    }
+  };
+
+  // 一括削除
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) {
+      alert('削除する項目を選択してください');
+      return;
+    }
+
+    if (window.confirm(`選択した${selectedIds.length}件を削除しますか？`)) {
+      setDeliveries((prev) => prev.filter((d) => !selectedIds.includes(d.id)));
+      setSelectedIds([]);
+    }
+  };
+
+  // 一括ステータス変更
+  const handleBulkStatusChange = (newStatus: Delivery['status']) => {
+    if (selectedIds.length === 0) {
+      alert('ステータスを変更する項目を選択してください');
+      return;
+    }
+
+    setDeliveries((prev) =>
+      prev.map((d) =>
+        selectedIds.includes(d.id) ? { ...d, status: newStatus } : d
+      )
+    );
+    setSelectedIds([]);
   };
 
   // バリデーション
@@ -223,6 +320,7 @@ export default function Home() {
     if (window.confirm('データを初期状態にリセットしますか？')) {
       setDeliveries(initialData);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
+      setSelectedIds([]);
     }
   };
 
@@ -245,9 +343,6 @@ export default function Home() {
     return colors[status];
   };
 
-  // 🆕 フィルター済みデータを取得
-  const filteredDeliveries = getFilteredDeliveries();
-
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -258,7 +353,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* 🆕 検索・フィルターエリア */}
+        {/* 検索・フィルターエリア */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-800">検索・フィルター</h2>
@@ -292,7 +387,9 @@ export default function Home() {
               </label>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as '' | Delivery['status'])}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as '' | Delivery['status'])
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">すべて</option>
@@ -359,9 +456,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 🆕 検索結果数の表示 */}
+          {/* 検索結果数の表示 */}
           <div className="mt-4 text-sm text-gray-600">
-            {filteredDeliveries.length} 件の配送先が見つかりました（全 {deliveries.length} 件中）
+            {filteredDeliveries.length} 件の配送先が見つかりました（全{' '}
+            {deliveries.length} 件中）
           </div>
         </div>
 
@@ -485,6 +583,43 @@ export default function Home() {
           </form>
         </div>
 
+        {/* 一括操作エリア */}
+        {selectedIds.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedIds.length} 件選択中
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleBulkStatusChange('pending')}
+                  className="px-3 py-1 text-sm bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200"
+                >
+                  配送待ちに変更
+                </button>
+                <button
+                  onClick={() => handleBulkStatusChange('in_transit')}
+                  className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                >
+                  配送中に変更
+                </button>
+                <button
+                  onClick={() => handleBulkStatusChange('completed')}
+                  className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded hover:bg-green-200"
+                >
+                  配送完了に変更
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200"
+                >
+                  一括削除
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 配送先一覧（テーブル） */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
@@ -502,6 +637,14 @@ export default function Home() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-6 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     配送先名
                   </th>
@@ -520,10 +663,19 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredDeliveries.map((delivery) => (
+                {paginatedDeliveries.map((delivery) => (
                   <tr key={delivery.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(delivery.id)}
+                        onChange={(e) =>
+                          handleSelectItem(delivery.id, e.target.checked)
+                        }
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {/* 🆕 ハイライト表示 */}
                       {highlightText(delivery.name, searchText)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -563,12 +715,19 @@ export default function Home() {
 
           {/* モバイル表示（カード） */}
           <div className="md:hidden divide-y divide-gray-200">
-            {filteredDeliveries.map((delivery) => (
+            {paginatedDeliveries.map((delivery) => (
               <div key={delivery.id} className="p-4">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(delivery.id)}
+                    onChange={(e) =>
+                      handleSelectItem(delivery.id, e.target.checked)
+                    }
+                    className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div className="flex-1 ml-3">
                     <h3 className="text-sm font-medium text-gray-900">
-                      {/* 🆕 ハイライト表示 */}
                       {highlightText(delivery.name, searchText)}
                     </h3>
                     <p className="mt-1 text-sm text-gray-500">
@@ -609,6 +768,47 @@ export default function Home() {
           {filteredDeliveries.length === 0 && (
             <div className="px-6 py-12 text-center text-gray-500">
               条件に一致する配送先が見つかりませんでした
+            </div>
+          )}
+
+          {/* ページネーション */}
+          {filteredDeliveries.length > 0 && totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  ページ {currentPage} / {totalPages}（全{filteredDeliveries.length}件）
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      console.log('前へクリック:', currentPage);
+                      setCurrentPage((prev) => Math.max(1, prev - 1));
+                    }}
+                    disabled={currentPage === 1}
+                    className={`px-4 py-2 text-sm rounded-md transition-colors ${
+                      currentPage === 1
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    前へ
+                  </button>
+                  <button
+                    onClick={() => {
+                      console.log('次へクリック:', currentPage);
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+                    }}
+                    disabled={currentPage === totalPages}
+                    className={`px-4 py-2 text-sm rounded-md transition-colors ${
+                      currentPage === totalPages
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    次へ
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
