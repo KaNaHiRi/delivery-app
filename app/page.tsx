@@ -781,7 +781,6 @@ const isAllSelected = paginatedDeliveries.length > 0 &&
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      console.log('前へクリック:', currentPage);
                       setCurrentPage((prev) => Math.max(1, prev - 1));
                     }}
                     disabled={currentPage === 1}
@@ -795,7 +794,6 @@ const isAllSelected = paginatedDeliveries.length > 0 &&
                   </button>
                   <button
                     onClick={() => {
-                      console.log('次へクリック:', currentPage);
                       setCurrentPage((prev) => Math.min(totalPages, prev + 1));
                     }}
                     disabled={currentPage === totalPages}
