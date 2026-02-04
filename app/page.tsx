@@ -112,9 +112,9 @@ export default function Home() {
   }, [searchText, statusFilter, startDate, endDate, sortBy, sortOrder]);
 
   // フィルター変更時にページを1に戻す
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchText, statusFilter, startDate, endDate]);
+  // useEffect(() => {
+  //   setCurrentPage(1);
+  // }, [searchText, statusFilter, startDate, endDate]);
 
   // フィルター処理（C#のLINQに相当）
   const getFilteredDeliveries = () => {
