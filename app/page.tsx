@@ -2,6 +2,9 @@
 
 import { useState, useEffect} from 'react';
 import { Delivery } from './types/delivery';
+import { Download } from 'lucide-react';
+import CsvExportModal from './components/CsvExportModal';
+import { downloadCSV, generateCsvFilename, CsvExportOptions } from './utils/csv';
 
 const STORAGE_KEY = 'delivery_app_data';
 const FILTERS_STORAGE_KEY = 'delivery_app_filters';
@@ -51,12 +54,16 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  // ページネーション用のStatefv
+  // ページネーション用のState
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(5);
 
   // 一括操作用のState
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // CSV出力用のState
+  const [csvModalOpen, setCsvModalOpen] = useState(false);
+  const [csvExportType, setCsvExportType] = useState<'all' | 'filtered' | 'selected'>('all');
 
   // LocalStorageからデータを読み込み（初回のみ）
   useEffect(() => {
@@ -111,11 +118,6 @@ export default function Home() {
     }
   }, [searchText, statusFilter, startDate, endDate, sortBy, sortOrder]);
 
-  // フィルター変更時にページを1に戻す
-  // useEffect(() => {
-  //   setCurrentPage(1);
-  // }, [searchText, statusFilter, startDate, endDate]);
-
   // フィルター処理（C#のLINQに相当）
   const getFilteredDeliveries = () => {
     let filtered = [...deliveries];
@@ -155,17 +157,17 @@ export default function Home() {
 
   const filteredDeliveries = getFilteredDeliveries();
 
- // 総ページ数の計算
-const totalPages = Math.ceil(filteredDeliveries.length / pageSize);
+  // 総ページ数の計算
+  const totalPages = Math.ceil(filteredDeliveries.length / pageSize);
 
-// ページネーション処理
-const startIndex = (currentPage - 1) * pageSize;
-const endIndex = startIndex + pageSize;
-const paginatedDeliveries = filteredDeliveries.slice(startIndex, endIndex);
+  // ページネーション処理
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedDeliveries = filteredDeliveries.slice(startIndex, endIndex);
 
-// 現在のページの全アイテムが選択されているか
-const isAllSelected = paginatedDeliveries.length > 0 &&
-  paginatedDeliveries.every((d) => selectedIds.includes(d.id));
+  // 現在のページの全アイテムが選択されているか
+  const isAllSelected = paginatedDeliveries.length > 0 &&
+    paginatedDeliveries.every((d) => selectedIds.includes(d.id));
 
   // フィルタークリア機能
   const handleClearFilters = () => {
@@ -324,6 +326,48 @@ const isAllSelected = paginatedDeliveries.length > 0 &&
     }
   };
 
+  // CSV出力処理
+  const handleCsvExport = (type: 'all' | 'filtered' | 'selected') => {
+    setCsvExportType(type);
+    setCsvModalOpen(true);
+  };
+
+  const executeCsvExport = (options: CsvExportOptions) => {
+    let dataToExport: Delivery[] = [];
+    let filenamePrefix = 'deliveries';
+
+    switch (csvExportType) {
+      case 'all':
+        dataToExport = deliveries;
+        filenamePrefix = 'deliveries_all';
+        break;
+      case 'filtered':
+        dataToExport = filteredDeliveries;
+        filenamePrefix = 'deliveries_filtered';
+        break;
+      case 'selected':
+        dataToExport = deliveries.filter(d => selectedIds.includes(d.id));
+        filenamePrefix = 'deliveries_selected';
+        break;
+    }
+
+    const filename = generateCsvFilename(filenamePrefix);
+    downloadCSV(dataToExport, filename, options);
+  };
+
+  const getExportRecordCount = (): number => {
+    switch (csvExportType) {
+      case 'all':
+        return deliveries.length;
+      case 'filtered':
+        return filteredDeliveries.length;
+      case 'selected':
+        return selectedIds.length;
+      default:
+        return 0;
+    }
+  };
+
   // ステータス表示
   const getStatusLabel = (status: Delivery['status']) => {
     const labels = {
@@ -460,6 +504,37 @@ const isAllSelected = paginatedDeliveries.length > 0 &&
           <div className="mt-4 text-sm text-gray-600">
             {filteredDeliveries.length} 件の配送先が見つかりました（全{' '}
             {deliveries.length} 件中）
+          </div>
+        </div>
+
+        {/* CSV出力ボタンエリア */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <h2 className="text-lg font-semibold text-gray-800">データ出力</h2>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleCsvExport('all')}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+              >
+                <Download className="h-4 w-4" />
+                全データ出力 ({deliveries.length}件)
+              </button>
+              <button
+                onClick={() => handleCsvExport('filtered')}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+              >
+                <Download className="h-4 w-4" />
+                フィルター済み出力 ({filteredDeliveries.length}件)
+              </button>
+              <button
+                onClick={() => handleCsvExport('selected')}
+                disabled={selectedIds.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4" />
+                選択データ出力 ({selectedIds.length}件)
+              </button>
+            </div>
           </div>
         </div>
 
@@ -811,6 +886,15 @@ const isAllSelected = paginatedDeliveries.length > 0 &&
           )}
         </div>
       </div>
+
+      {/* CSV出力モーダル */}
+      <CsvExportModal
+        isOpen={csvModalOpen}
+        onClose={() => setCsvModalOpen(false)}
+        onExport={executeCsvExport}
+        recordCount={getExportRecordCount()}
+        exportType={csvExportType}
+      />
     </div>
   );
 }
