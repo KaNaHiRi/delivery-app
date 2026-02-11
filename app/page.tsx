@@ -6,6 +6,7 @@ import { Download, Upload } from 'lucide-react';
 import CsvExportModal from './components/CsvExportModal';
 import CsvImportModal from './components/CsvImportModal';
 import { downloadCSV, generateCsvFilename, CsvExportOptions } from './utils/csv';
+import DashboardStats from './components/DashboardStats';
 
 const STORAGE_KEY = 'delivery_app_data';
 const FILTERS_STORAGE_KEY = 'delivery_app_filters';
@@ -417,6 +418,9 @@ export default function Home() {
           </p>
         </div>
 
+        {/* ダッシュボード統計 */}
+        <DashboardStats deliveries={deliveries} />
+        
         {/* 検索・フィルターエリア */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
