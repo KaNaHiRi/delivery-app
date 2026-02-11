@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect} from 'react';
+import { useState, useEffect } from 'react';
 import { Delivery } from './types/delivery';
-import { Download } from 'lucide-react';
+import { Download, Upload } from 'lucide-react';
 import CsvExportModal from './components/CsvExportModal';
+import CsvImportModal from './components/CsvImportModal';
 import { downloadCSV, generateCsvFilename, CsvExportOptions } from './utils/csv';
 
 const STORAGE_KEY = 'delivery_app_data';
@@ -65,6 +66,9 @@ export default function Home() {
   const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [csvExportType, setCsvExportType] = useState<'all' | 'filtered' | 'selected'>('all');
 
+  // CSV読込用のState（新規追加）
+  const [showImportModal, setShowImportModal] = useState(false);
+
   // LocalStorageからデータを読み込み（初回のみ）
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -98,7 +102,7 @@ export default function Home() {
 
   // deliveriesが変更されたらLocalStorageに保存
   useEffect(() => {
-    if (deliveries.length > 0 && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(deliveries));
     }
   }, [deliveries]);
@@ -332,6 +336,22 @@ export default function Home() {
     setCsvModalOpen(true);
   };
 
+  // CSVインポート処理（C#の ImportFromCsv相当）
+  const handleCsvImport = (importedDeliveries: Delivery[], mode: 'add' | 'replace') => {
+    if (mode === 'replace') {
+      // LocalStorageも同時に上書き
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(importedDeliveries));
+      setDeliveries(importedDeliveries);
+    } else {
+      setDeliveries((prev) => {
+        const merged = [...prev, ...importedDeliveries];
+        // LocalStorageも同時に更新
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        return merged;
+      });
+    }
+    setShowImportModal(false);
+  };
   const executeCsvExport = (options: CsvExportOptions) => {
     let dataToExport: Delivery[] = [];
     let filenamePrefix = 'deliveries';
@@ -507,14 +527,24 @@ export default function Home() {
           </div>
         </div>
 
-        {/* CSV出力ボタンエリア */}
+        {/* CSV入出力ボタンエリア */}
         <div className="bg-white rounded-lg shadow-md p-4 mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold text-gray-800">データ出力</h2>
+            <h2 className="text-lg font-semibold text-gray-800">データ入出力</h2>
             <div className="flex flex-wrap gap-2">
+              {/* CSV読込ボタン（新規追加） */}
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+              >
+                <Upload className="h-4 w-4" />
+                CSV読込
+              </button>
+              
+              {/* CSV出力ボタン（既存） */}
               <button
                 onClick={() => handleCsvExport('all')}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
               >
                 <Download className="h-4 w-4" />
                 全データ出力 ({deliveries.length}件)
@@ -894,6 +924,13 @@ export default function Home() {
         onExport={executeCsvExport}
         recordCount={getExportRecordCount()}
         exportType={csvExportType}
+      />
+
+      {/* CSVインポートモーダル（新規追加） */}
+      <CsvImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImport={handleCsvImport}
       />
     </div>
   );
