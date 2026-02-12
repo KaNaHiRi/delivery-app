@@ -1,916 +1,509 @@
+// app/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit2, Trash2, Search, ChevronUp, ChevronDown, Download, Upload } from 'lucide-react';
 import { Delivery } from './types/delivery';
-import { Download, Upload } from 'lucide-react';
 import CsvExportModal from './components/CsvExportModal';
 import CsvImportModal from './components/CsvImportModal';
-import { downloadCSV, generateCsvFilename, CsvExportOptions } from './utils/csv';
 import DashboardStats from './components/DashboardStats';
+import ThemeToggle from './components/ThemeToggle';
 
+const ITEMS_PER_PAGE = 10;
 const STORAGE_KEY = 'delivery_app_data';
-const FILTERS_STORAGE_KEY = 'delivery_app_filters';
-
-const initialData: Delivery[] = [
-  {
-    id: '1',
-    name: '東京都渋谷区配送センター',
-    address: '東京都渋谷区道玄坂1-2-3',
-    status: 'completed',
-    deliveryDate: '2024-01-15',
-  },
-  {
-    id: '2',
-    name: '神奈川県横浜市物流拠点',
-    address: '神奈川県横浜市西区みなとみらい4-5-6',
-    status: 'in_transit',
-    deliveryDate: '2024-01-20',
-  },
-  {
-    id: '3',
-    name: '大阪府大阪市配送所',
-    address: '大阪府大阪市北区梅田7-8-9',
-    status: 'pending',
-    deliveryDate: '2024-01-25',
-  },
-];
+const FILTER_STORAGE_KEY = 'delivery_app_filters';
 
 export default function Home() {
-  // 既存のState
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
-  const [formData, setFormData] = useState({
-    name: '',
-    address: '',
-    status: 'pending' as Delivery['status'],
-    deliveryDate: '',
-  });
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
-  // 検索・フィルター用のState
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'' | Delivery['status']>('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'date'>('date');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDelivery, setEditingDelivery] = useState<Delivery | null>(null);
+  const [formData, setFormData] = useState({ name: '', address: '', status: 'pending' as Delivery['status'], deliveryDate: '' });
+  
+  // 検索・フィルター
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<Delivery['status'] | 'all'>('all');
+  const [sortField, setSortField] = useState<keyof Delivery>('deliveryDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
-  // ページネーション用のState
+  
+  // ページネーション
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(5);
+  
+  // 一括操作
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isAllSelected, setIsAllSelected] = useState(false);
+  
+  // CSV出力モーダル
+  const [isCsvExportModalOpen, setIsCsvExportModalOpen] = useState(false);
+  
+  // CSVインポートモーダル
+  const [isCsvImportModalOpen, setIsCsvImportModalOpen] = useState(false);
 
-  // 一括操作用のState
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  // CSV出力用のState
-  const [csvModalOpen, setCsvModalOpen] = useState(false);
-  const [csvExportType, setCsvExportType] = useState<'all' | 'filtered' | 'selected'>('all');
-
-  // CSV読込用のState（新規追加）
-  const [showImportModal, setShowImportModal] = useState(false);
-
-  // LocalStorageからデータを読み込み（初回のみ）
+  // LocalStorageからデータを読み込み
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        try {
-          setDeliveries(JSON.parse(saved));
-        } catch {
-          setDeliveries(initialData);
-        }
-      } else {
-        setDeliveries(initialData);
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        setDeliveries(JSON.parse(saved));
+      } catch (error) {
+        console.error('データの読み込みに失敗しました:', error);
       }
-
-      const savedFilters = localStorage.getItem(FILTERS_STORAGE_KEY);
-      if (savedFilters) {
-        try {
-          const filters = JSON.parse(savedFilters);
-          setSearchText(filters.searchText || '');
-          setStatusFilter(filters.statusFilter || '');
-          setStartDate(filters.startDate || '');
-          setEndDate(filters.endDate || '');
-          setSortBy(filters.sortBy || 'date');
-          setSortOrder(filters.sortOrder || 'asc');
-        } catch {
-          // エラー時は何もしない
-        }
+    }
+    
+    const savedFilters = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (savedFilters) {
+      try {
+        const filters = JSON.parse(savedFilters);
+        setSearchTerm(filters.searchTerm || '');
+        setStatusFilter(filters.statusFilter || 'all');
+        setSortField(filters.sortField || 'deliveryDate');
+        setSortOrder(filters.sortOrder || 'asc');
+      } catch (error) {
+        console.error('フィルター設定の読み込みに失敗しました:', error);
       }
     }
   }, []);
 
-  // deliveriesが変更されたらLocalStorageに保存
+  // データが変更されたらLocalStorageに保存
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (deliveries.length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(deliveries));
     }
   }, [deliveries]);
 
-  // 検索条件が変更されたらLocalStorageに保存
+  // フィルター設定を保存
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const filters = {
-        searchText,
-        statusFilter,
-        startDate,
-        endDate,
-        sortBy,
-        sortOrder,
-      };
-      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
-    }
-  }, [searchText, statusFilter, startDate, endDate, sortBy, sortOrder]);
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
+      searchTerm,
+      statusFilter,
+      sortField,
+      sortOrder
+    }));
+  }, [searchTerm, statusFilter, sortField, sortOrder]);
 
-  // フィルター処理（C#のLINQに相当）
-  const getFilteredDeliveries = () => {
-    let filtered = [...deliveries];
+  // フィルター・ソート・検索処理
+  const filteredAndSortedDeliveries = useMemo(() => {
+    let result = [...deliveries];
 
-    if (searchText.trim()) {
-      const searchLower = searchText.toLowerCase().trim();
-      filtered = filtered.filter((d) =>
-        d.name.toLowerCase().includes(searchLower)
+    // 検索フィルター
+    if (searchTerm) {
+      result = result.filter(d => 
+        d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        d.address.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    if (statusFilter) {
-      filtered = filtered.filter((d) => d.status === statusFilter);
+    // ステータスフィルター
+    if (statusFilter !== 'all') {
+      result = result.filter(d => d.status === statusFilter);
     }
 
-    if (startDate) {
-      filtered = filtered.filter((d) => d.deliveryDate >= startDate);
-    }
-    if (endDate) {
-      filtered = filtered.filter((d) => d.deliveryDate <= endDate);
-    }
-
-    filtered.sort((a, b) => {
-      let comparison = 0;
-
-      if (sortBy === 'name') {
-        comparison = a.name.localeCompare(b.name);
-      } else {
-        comparison = a.deliveryDate.localeCompare(b.deliveryDate);
-      }
-
-      return sortOrder === 'asc' ? comparison : -comparison;
+    // ソート
+    result.sort((a, b) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+      
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
     });
 
-    return filtered;
-  };
+    return result;
+  }, [deliveries, searchTerm, statusFilter, sortField, sortOrder]);
 
-  const filteredDeliveries = getFilteredDeliveries();
+  // ページネーション計算
+  const totalPages = Math.ceil(filteredAndSortedDeliveries.length / ITEMS_PER_PAGE);
+  const paginatedDeliveries = filteredAndSortedDeliveries.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
-  // 総ページ数の計算
-  const totalPages = Math.ceil(filteredDeliveries.length / pageSize);
+  // ページ変更時に先頭にスクロール
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
 
-  // ページネーション処理
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedDeliveries = filteredDeliveries.slice(startIndex, endIndex);
-
-  // 現在のページの全アイテムが選択されているか
-  const isAllSelected = paginatedDeliveries.length > 0 &&
-    paginatedDeliveries.every((d) => selectedIds.includes(d.id));
-
-  // フィルタークリア機能
-  const handleClearFilters = () => {
-    setSearchText('');
-    setStatusFilter('');
-    setStartDate('');
-    setEndDate('');
-    setSortBy('date');
-    setSortOrder('asc');
-    setCurrentPage(1);
-  };
-
-  // 検索結果のハイライト表示
-  const highlightText = (text: string, highlight: string) => {
-    if (!highlight.trim()) {
-      return text;
-    }
-    const regex = new RegExp(`(${highlight})`, 'gi');
-    const parts = text.split(regex);
-
-    return parts.map((part, index) =>
-      regex.test(part) ? (
-        <span key={index} className="bg-yellow-200 font-bold">
-          {part}
-        </span>
-      ) : (
-        part
-      )
+  // 全選択の状態を更新
+  useEffect(() => {
+    const currentPageIds = paginatedDeliveries.map(d => d.id);
+    setIsAllSelected(
+      currentPageIds.length > 0 && 
+      currentPageIds.every(id => selectedIds.has(id))
     );
-  };
+  }, [paginatedDeliveries, selectedIds]);
 
-  // 全選択/全解除
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const currentPageIds = paginatedDeliveries.map((d) => d.id);
-      setSelectedIds(currentPageIds);
-    } else {
-      setSelectedIds([]);
-    }
-  };
-
-  // 個別選択
-  const handleSelectItem = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds([...selectedIds, id]);
-    } else {
-      setSelectedIds(selectedIds.filter((selectedId) => selectedId !== id));
-    }
-  };
-
-  // 一括削除
-  const handleBulkDelete = () => {
-    if (selectedIds.length === 0) {
-      alert('削除する項目を選択してください');
-      return;
-    }
-
-    if (window.confirm(`選択した${selectedIds.length}件を削除しますか？`)) {
-      setDeliveries((prev) => prev.filter((d) => !selectedIds.includes(d.id)));
-      setSelectedIds([]);
-    }
-  };
-
-  // 一括ステータス変更
-  const handleBulkStatusChange = (newStatus: Delivery['status']) => {
-    if (selectedIds.length === 0) {
-      alert('ステータスを変更する項目を選択してください');
-      return;
-    }
-
-    setDeliveries((prev) =>
-      prev.map((d) =>
-        selectedIds.includes(d.id) ? { ...d, status: newStatus } : d
-      )
-    );
-    setSelectedIds([]);
-  };
-
-  // バリデーション
-  const validate = () => {
-    const newErrors: { [key: string]: string } = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = '配送先名を入力してください';
-    }
-    if (!formData.address.trim()) {
-      newErrors.address = '住所を入力してください';
-    }
-    if (!formData.deliveryDate) {
-      newErrors.deliveryDate = '配送日を選択してください';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // フォーム送信（追加・編集）
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validate()) return;
-
-    if (isEditing && editingId) {
-      setDeliveries((prev) =>
-        prev.map((delivery) =>
-          delivery.id === editingId
-            ? { ...formData, id: editingId }
-            : delivery
-        )
-      );
-      setIsEditing(false);
-      setEditingId(null);
-    } else {
-      const newDelivery: Delivery = {
-        ...formData,
-        id: Date.now().toString(),
-      };
-      setDeliveries((prev) => [...prev, newDelivery]);
+    if (!formData.name || !formData.address || !formData.deliveryDate) {
+      alert('全ての項目を入力してください');
+      return;
     }
 
-    setFormData({
-      name: '',
-      address: '',
-      status: 'pending',
-      deliveryDate: '',
-    });
-    setErrors({});
+    if (editingDelivery) {
+      setDeliveries(deliveries.map(d => 
+        d.id === editingDelivery.id 
+          ? { ...editingDelivery, ...formData }
+          : d
+      ));
+    } else {
+      const newDelivery: Delivery = {
+        id: Date.now().toString(),
+        ...formData
+      };
+      setDeliveries([...deliveries, newDelivery]);
+    }
+
+    setIsModalOpen(false);
+    setEditingDelivery(null);
+    setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' });
   };
 
-  // 編集ボタンクリック
-  const handleEditClick = (delivery: Delivery) => {
+  const handleEdit = (delivery: Delivery) => {
+    setEditingDelivery(delivery);
     setFormData({
       name: delivery.name,
       address: delivery.address,
       status: delivery.status,
-      deliveryDate: delivery.deliveryDate,
+      deliveryDate: delivery.deliveryDate
     });
-    setIsEditing(true);
-    setEditingId(delivery.id);
-    setErrors({});
+    setIsModalOpen(true);
   };
 
-  // 削除確認
-  const handleDeleteConfirm = (id: string) => {
-    if (window.confirm('本当に削除しますか？')) {
-      setDeliveries((prev) => prev.filter((d) => d.id !== id));
+  const handleDelete = (id: string) => {
+    if (confirm('本当に削除しますか？')) {
+      setDeliveries(deliveries.filter(d => d.id !== id));
+      selectedIds.delete(id);
+      setSelectedIds(new Set(selectedIds));
     }
   };
 
-  // データリセット
-  const handleResetData = () => {
-    if (window.confirm('データを初期状態にリセットしますか？')) {
-      setDeliveries(initialData);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
-      setSelectedIds([]);
-    }
-  };
-
-  // CSV出力処理
-  const handleCsvExport = (type: 'all' | 'filtered' | 'selected') => {
-    setCsvExportType(type);
-    setCsvModalOpen(true);
-  };
-
-  // CSVインポート処理（C#の ImportFromCsv相当）
-  const handleCsvImport = (importedDeliveries: Delivery[], mode: 'add' | 'replace') => {
-    if (mode === 'replace') {
-      // LocalStorageも同時に上書き
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(importedDeliveries));
-      setDeliveries(importedDeliveries);
+  const handleSort = (field: keyof Delivery) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      setDeliveries((prev) => {
-        const merged = [...prev, ...importedDeliveries];
-        // LocalStorageも同時に更新
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-        return merged;
-      });
+      setSortField(field);
+      setSortOrder('asc');
     }
-    setShowImportModal(false);
-  };
-  const executeCsvExport = (options: CsvExportOptions) => {
-    let dataToExport: Delivery[] = [];
-    let filenamePrefix = 'deliveries';
-
-    switch (csvExportType) {
-      case 'all':
-        dataToExport = deliveries;
-        filenamePrefix = 'deliveries_all';
-        break;
-      case 'filtered':
-        dataToExport = filteredDeliveries;
-        filenamePrefix = 'deliveries_filtered';
-        break;
-      case 'selected':
-        dataToExport = deliveries.filter(d => selectedIds.includes(d.id));
-        filenamePrefix = 'deliveries_selected';
-        break;
-    }
-
-    const filename = generateCsvFilename(filenamePrefix);
-    downloadCSV(dataToExport, filename, options);
+    setCurrentPage(1);
   };
 
-  const getExportRecordCount = (): number => {
-    switch (csvExportType) {
-      case 'all':
-        return deliveries.length;
-      case 'filtered':
-        return filteredDeliveries.length;
-      case 'selected':
-        return selectedIds.length;
-      default:
-        return 0;
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      const currentPageIds = paginatedDeliveries.map(d => d.id);
+      const newSelected = new Set(selectedIds);
+      currentPageIds.forEach(id => newSelected.delete(id));
+      setSelectedIds(newSelected);
+    } else {
+      const newSelected = new Set(selectedIds);
+      paginatedDeliveries.forEach(d => newSelected.add(d.id));
+      setSelectedIds(newSelected);
     }
   };
 
-  // ステータス表示
+  const handleSelectOne = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) {
+      alert('削除する項目を選択してください');
+      return;
+    }
+    if (confirm(`選択した${selectedIds.size}件を削除しますか？`)) {
+      setDeliveries(deliveries.filter(d => !selectedIds.has(d.id)));
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleBulkStatusChange = (newStatus: Delivery['status']) => {
+    if (selectedIds.size === 0) {
+      alert('変更する項目を選択してください');
+      return;
+    }
+    setDeliveries(deliveries.map(d => 
+      selectedIds.has(d.id) ? { ...d, status: newStatus } : d
+    ));
+    setSelectedIds(new Set());
+  };
+
   const getStatusLabel = (status: Delivery['status']) => {
     const labels = {
       pending: '配送待ち',
       in_transit: '配送中',
-      completed: '配送完了',
+      completed: '完了'
     };
     return labels[status];
   };
 
   const getStatusColor = (status: Delivery['status']) => {
     const colors = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      in_transit: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
+      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      in_transit: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
     };
     return colors[status];
   };
 
+  const SortIcon = ({ field }: { field: keyof Delivery }) => {
+    if (sortField !== field) return null;
+    return sortOrder === 'asc' ? 
+      <ChevronUp className="w-4 h-4" /> : 
+      <ChevronDown className="w-4 h-4" />;
+  };
+
+  const handleCsvImportComplete = (importedDeliveries: Delivery[], mode: 'add' | 'overwrite') => {
+    if (mode === 'overwrite') {
+      setDeliveries(importedDeliveries);
+    } else {
+      setDeliveries([...deliveries, ...importedDeliveries]);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">配送管理システム</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            配送先の登録・編集・削除ができます
-          </p>
-        </div>
-
-        {/* ダッシュボード統計 */}
-        <DashboardStats deliveries={deliveries} />
-        
-        {/* 検索・フィルターエリア */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">検索・フィルター</h2>
-            <button
-              onClick={handleClearFilters}
-              className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-            >
-              フィルタークリア
-            </button>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      {/* ヘッダー */}
+      <header className="bg-white dark:bg-gray-800 shadow transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">配送管理システム</h1>
+            <ThemeToggle />
           </div>
+        </div>
+      </header>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* 配送先名検索 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                配送先名検索
-              </label>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* 統計ダッシュボード */}
+        <DashboardStats deliveries={deliveries} />
+
+        {/* 検索・フィルター・アクションバー */}
+        <div className="mb-6 space-y-4">
+          {/* 検索バー */}
+          <div className="flex gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
               <input
                 type="text"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="配送先名を入力..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="名前または住所で検索..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
               />
             </div>
-
-            {/* ステータスフィルター */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ステータス
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(e.target.value as '' | Delivery['status'])
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">すべて</option>
-                <option value="pending">配送待ち</option>
-                <option value="in_transit">配送中</option>
-                <option value="completed">配送完了</option>
-              </select>
-            </div>
-
-            {/* 開始日 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                配送日（開始）
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* 終了日 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                配送日（終了）
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* ソート項目 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ソート項目
-              </label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'name' | 'date')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="name">配送先名</option>
-                <option value="date">配送日</option>
-              </select>
-            </div>
-
-            {/* ソート順序 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ソート順序
-              </label>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="asc">昇順（A→Z / 古→新）</option>
-                <option value="desc">降順（Z→A / 新→古）</option>
-              </select>
-            </div>
+            
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as Delivery['status'] | 'all');
+                setCurrentPage(1);
+              }}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+            >
+              <option value="all">全てのステータス</option>
+              <option value="pending">配送待ち</option>
+              <option value="in_transit">配送中</option>
+              <option value="completed">完了</option>
+            </select>
           </div>
 
-          {/* 検索結果数の表示 */}
-          <div className="mt-4 text-sm text-gray-600">
-            {filteredDeliveries.length} 件の配送先が見つかりました（全{' '}
-            {deliveries.length} 件中）
-          </div>
-        </div>
+          {/* アクションボタン */}
+          <div className="flex flex-wrap gap-4">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              新規配送登録
+            </button>
 
-        {/* CSV入出力ボタンエリア */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold text-gray-800">データ入出力</h2>
-            <div className="flex flex-wrap gap-2">
-              {/* CSV読込ボタン（新規追加） */}
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
-              >
-                <Upload className="h-4 w-4" />
-                CSV読込
-              </button>
-              
-              {/* CSV出力ボタン（既存） */}
-              <button
-                onClick={() => handleCsvExport('all')}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-              >
-                <Download className="h-4 w-4" />
-                全データ出力 ({deliveries.length}件)
-              </button>
-              <button
-                onClick={() => handleCsvExport('filtered')}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-              >
-                <Download className="h-4 w-4" />
-                フィルター済み出力 ({filteredDeliveries.length}件)
-              </button>
-              <button
-                onClick={() => handleCsvExport('selected')}
-                disabled={selectedIds.length === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                <Download className="h-4 w-4" />
-                選択データ出力 ({selectedIds.length}件)
-              </button>
-            </div>
-          </div>
-        </div>
+            <button
+              onClick={() => setIsCsvImportModalOpen(true)}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <Upload className="w-5 h-5" />
+              CSVインポート
+            </button>
 
-        {/* フォームエリア */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            {isEditing ? '配送先を編集' : '新しい配送先を追加'}
-          </h2>
+            <button
+              onClick={() => setIsCsvExportModalOpen(true)}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <Download className="w-5 h-5" />
+              CSV出力
+            </button>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  配送先名 *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.name ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="例: 東京都渋谷区配送センター"
-                />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-500">{errors.name}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  住所 *
-                </label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.address ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="例: 東京都渋谷区道玄坂1-2-3"
-                />
-                {errors.address && (
-                  <p className="mt-1 text-sm text-red-500">{errors.address}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ステータス *
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as Delivery['status'],
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="pending">配送待ち</option>
-                  <option value="in_transit">配送中</option>
-                  <option value="completed">配送完了</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  配送日 *
-                </label>
-                <input
-                  type="date"
-                  value={formData.deliveryDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, deliveryDate: e.target.value })
-                  }
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.deliveryDate ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {errors.deliveryDate && (
-                  <p className="mt-1 text-sm text-red-500">
-                    {errors.deliveryDate}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-              >
-                {isEditing ? '更新' : '追加'}
-              </button>
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditingId(null);
-                    setFormData({
-                      name: '',
-                      address: '',
-                      status: 'pending',
-                      deliveryDate: '',
-                    });
-                    setErrors({});
-                  }}
-                  className="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
-                >
-                  キャンセル
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* 一括操作エリア */}
-        {selectedIds.length > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-blue-900">
-                {selectedIds.length} 件選択中
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleBulkStatusChange('pending')}
-                  className="px-3 py-1 text-sm bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200"
-                >
-                  配送待ちに変更
-                </button>
-                <button
-                  onClick={() => handleBulkStatusChange('in_transit')}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-                >
-                  配送中に変更
-                </button>
-                <button
-                  onClick={() => handleBulkStatusChange('completed')}
-                  className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded hover:bg-green-200"
-                >
-                  配送完了に変更
-                </button>
+            {selectedIds.size > 0 && (
+              <>
                 <button
                   onClick={handleBulkDelete}
-                  className="px-3 py-1 text-sm bg-red-100 text-red-800 rounded hover:bg-red-200"
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
                 >
-                  一括削除
+                  <Trash2 className="w-5 h-5" />
+                  一括削除 ({selectedIds.size})
                 </button>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* 配送先一覧（テーブル） */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-800">配送先一覧</h2>
-            <button
-              onClick={handleResetData}
-              className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors"
-            >
-              データをリセット
-            </button>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleBulkStatusChange(e.target.value as Delivery['status']);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors"
+                  defaultValue=""
+                >
+                  <option value="">一括ステータス変更...</option>
+                  <option value="pending">配送待ちに変更</option>
+                  <option value="in_transit">配送中に変更</option>
+                  <option value="completed">完了に変更</option>
+                </select>
+              </>
+            )}
           </div>
+        </div>
 
-          {/* デスクトップ表示（テーブル） */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+        {/* 配送リストテーブル */}
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden transition-colors">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th className="px-6 py-3 text-left">
                     <input
                       type="checkbox"
                       checked={isAllSelected}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 rounded focus:ring-blue-500 dark:focus:ring-blue-600"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    配送先名
+                  <th 
+                    onClick={() => handleSort('name')}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-1">
+                      配送先名
+                      <SortIcon field="name" />
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    住所
+                  <th 
+                    onClick={() => handleSort('address')}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-1">
+                      住所
+                      <SortIcon field="address" />
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ステータス
+                  <th 
+                    onClick={() => handleSort('status')}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-1">
+                      ステータス
+                      <SortIcon field="status" />
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    配送日
+                  <th 
+                    onClick={() => handleSort('deliveryDate')}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <div className="flex items-center gap-1">
+                      配送予定日
+                      <SortIcon field="deliveryDate" />
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     操作
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedDeliveries.map((delivery) => (
-                  <tr key={delivery.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(delivery.id)}
-                        onChange={(e) =>
-                          handleSelectItem(delivery.id, e.target.checked)
-                        }
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {highlightText(delivery.name, searchText)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {delivery.address}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                          delivery.status
-                        )}`}
-                      >
-                        {getStatusLabel(delivery.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {delivery.deliveryDate}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEditClick(delivery)}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        編集
-                      </button>
-                      <button
-                        onClick={() => handleDeleteConfirm(delivery.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        削除
-                      </button>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {paginatedDeliveries.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                      データがありません
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  paginatedDeliveries.map((delivery) => (
+                    <tr key={delivery.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(delivery.id)}
+                          onChange={() => handleSelectOne(delivery.id)}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-600 border-gray-300 dark:border-gray-500 rounded focus:ring-blue-500 dark:focus:ring-blue-600"
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {delivery.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {delivery.address}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(delivery.status)}`}>
+                          {getStatusLabel(delivery.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {delivery.deliveryDate}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button
+                          onClick={() => handleEdit(delivery)}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(delivery.id)}
+                          className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
-          {/* モバイル表示（カード） */}
-          <div className="md:hidden divide-y divide-gray-200">
-            {paginatedDeliveries.map((delivery) => (
-              <div key={delivery.id} className="p-4">
-                <div className="flex items-start justify-between">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(delivery.id)}
-                    onChange={(e) =>
-                      handleSelectItem(delivery.id, e.target.checked)
-                    }
-                    className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div className="flex-1 ml-3">
-                    <h3 className="text-sm font-medium text-gray-900">
-                      {highlightText(delivery.name, searchText)}
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {delivery.address}
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                          delivery.status
-                        )}`}
-                      >
-                        {getStatusLabel(delivery.status)}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {delivery.deliveryDate}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => handleEditClick(delivery)}
-                    className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 text-sm rounded-md hover:bg-blue-200 transition-colors"
-                  >
-                    編集
-                  </button>
-                  <button
-                    onClick={() => handleDeleteConfirm(delivery.id)}
-                    className="flex-1 px-3 py-2 bg-red-100 text-red-700 text-sm rounded-md hover:bg-red-200 transition-colors"
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredDeliveries.length === 0 && (
-            <div className="px-6 py-12 text-center text-gray-500">
-              条件に一致する配送先が見つかりませんでした
-            </div>
-          )}
-
           {/* ページネーション */}
-          {filteredDeliveries.length > 0 && totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-gray-200">
+          {totalPages > 1 && (
+            <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  ページ {currentPage} / {totalPages}（全{filteredDeliveries.length}件）
+                <div className="text-sm text-gray-700 dark:text-gray-300">
+                  全 <span className="font-medium">{filteredAndSortedDeliveries.length}</span> 件中{' '}
+                  <span className="font-medium">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> 〜{' '}
+                  <span className="font-medium">
+                    {Math.min(currentPage * ITEMS_PER_PAGE, filteredAndSortedDeliveries.length)}
+                  </span>{' '}
+                  件を表示
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => {
-                      setCurrentPage((prev) => Math.max(1, prev - 1));
-                    }}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
-                    className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                      currentPage === 1
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     前へ
                   </button>
+                  <span className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {currentPage} / {totalPages}
+                  </span>
                   <button
-                    onClick={() => {
-                      setCurrentPage((prev) => Math.min(totalPages, prev + 1));
-                    }}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
-                    className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                      currentPage === totalPages
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     次へ
                   </button>
@@ -919,23 +512,107 @@ export default function Home() {
             </div>
           )}
         </div>
-      </div>
+      </main>
+
+      {/* 新規登録・編集モーダル */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md transition-colors">
+            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+              {editingDelivery ? '配送情報編集' : '新規配送登録'}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  配送先名 *
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  住所 *
+                </label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  ステータス *
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as Delivery['status'] })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                >
+                  <option value="pending">配送待ち</option>
+                  <option value="in_transit">配送中</option>
+                  <option value="completed">完了</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  配送予定日 *
+                </label>
+                <input
+                  type="date"
+                  value={formData.deliveryDate}
+                  onChange={(e) => setFormData({ ...formData, deliveryDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                  required
+                />
+              </div>
+              <div className="flex gap-2 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white py-2 rounded-lg transition-colors"
+                >
+                  {editingDelivery ? '更新' : '登録'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setEditingDelivery(null);
+                    setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' });
+                  }}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-white py-2 rounded-lg transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CSV出力モーダル */}
-      <CsvExportModal
-        isOpen={csvModalOpen}
-        onClose={() => setCsvModalOpen(false)}
-        onExport={executeCsvExport}
-        recordCount={getExportRecordCount()}
-        exportType={csvExportType}
-      />
+      {isCsvExportModalOpen && (
+        <CsvExportModal
+          deliveries={deliveries}
+          filteredDeliveries={filteredAndSortedDeliveries}
+          selectedIds={selectedIds}
+          onClose={() => setIsCsvExportModalOpen(false)}
+        />
+      )}
 
-      {/* CSVインポートモーダル（新規追加） */}
-      <CsvImportModal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onImport={handleCsvImport}
-      />
+      {/* CSVインポートモーダル */}
+      {isCsvImportModalOpen && (
+        <CsvImportModal
+          onClose={() => setIsCsvImportModalOpen(false)}
+          onImportComplete={handleCsvImportComplete}
+        />
+      )}
     </div>
   );
 }

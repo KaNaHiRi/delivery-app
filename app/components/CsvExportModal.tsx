@@ -1,197 +1,208 @@
+// app/components/CsvExportModal.tsx
 'use client';
 
 import { useState } from 'react';
-import { X, Download, Settings } from 'lucide-react';
-import type {
-  CsvExportOptions,
-  CsvEncoding,
-  CsvDelimiter,
-} from '../utils/csv';
-import { DEFAULT_CSV_OPTIONS } from '../utils/csv';
+import { X, Download } from 'lucide-react';
+import { Delivery } from '../types/delivery';
+import { downloadCSV, generateCsvFilename, CsvExportOptions } from '../utils/csv';
 
 interface CsvExportModalProps {
-  isOpen: boolean;
+  deliveries: Delivery[];
+  filteredDeliveries: Delivery[];
+  selectedIds: Set<string>;
   onClose: () => void;
-  onExport: (options: CsvExportOptions) => void;
-  recordCount: number;
-  exportType: 'all' | 'filtered' | 'selected';
 }
 
 export default function CsvExportModal({
-  isOpen,
+  deliveries,
+  filteredDeliveries,
+  selectedIds,
   onClose,
-  onExport,
-  recordCount,
-  exportType,
 }: CsvExportModalProps) {
-  const [options, setOptions] = useState<CsvExportOptions>(DEFAULT_CSV_OPTIONS);
-
-  if (!isOpen) return null;
-
-  const exportTypeText = {
-    all: '全データ',
-    filtered: 'フィルター済みデータ',
-    selected: '選択したデータ',
-  };
+  const [exportType, setExportType] = useState<'all' | 'filtered' | 'selected'>('all');
+  const [encoding, setEncoding] = useState<'utf-8' | 'shift-jis'>('utf-8');
+  const [delimiter, setDelimiter] = useState<'comma' | 'tab'>('comma');
+  const [withBOM, setWithBOM] = useState(true);
 
   const handleExport = () => {
-    onExport(options);
+    let dataToExport: Delivery[] = [];
+
+    switch (exportType) {
+      case 'all':
+        dataToExport = deliveries;
+        break;
+      case 'filtered':
+        dataToExport = filteredDeliveries;
+        break;
+      case 'selected':
+        dataToExport = deliveries.filter(d => selectedIds.has(d.id));
+        break;
+    }
+
+    if (dataToExport.length === 0) {
+      alert('出力するデータがありません');
+      return;
+    }
+
+    const options: CsvExportOptions = {
+      encoding,
+      delimiter,
+      includeBOM: withBOM,
+    };
+
+    const filename = generateCsvFilename('deliveries');
+    downloadCSV(dataToExport, filename, options);
+
     onClose();
   };
 
+  const getExportCount = () => {
+    switch (exportType) {
+      case 'all':
+        return deliveries.length;
+      case 'filtered':
+        return filteredDeliveries.length;
+      case 'selected':
+        return selectedIds.size;
+      default:
+        return 0;
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto transition-colors">
         {/* ヘッダー */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <div className="flex items-center gap-2">
-            <Settings className="h-5 w-5 text-blue-600" />
-            <h2 className="text-xl font-semibold">CSV出力設定</h2>
-          </div>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">CSV出力</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* コンテンツ */}
-        <div className="p-6 space-y-6">
-          {/* 出力対象情報 */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-800">
-              <span className="font-semibold">{exportTypeText[exportType]}</span>
-              を出力します
-            </p>
-            <p className="text-sm text-blue-600 mt-1">
-              対象レコード数: {recordCount}件
-            </p>
+        <div className="space-y-6">
+          {/* 出力範囲選択 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              出力範囲
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="all"
+                  checked={exportType === 'all'}
+                  onChange={(e) => setExportType(e.target.value as 'all')}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-blue-500 dark:focus:ring-blue-600"
+                />
+                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                  全てのデータ ({deliveries.length}件)
+                </span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="filtered"
+                  checked={exportType === 'filtered'}
+                  onChange={(e) => setExportType(e.target.value as 'filtered')}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-blue-500 dark:focus:ring-blue-600"
+                />
+                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                  フィルター済みデータ ({filteredDeliveries.length}件)
+                </span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="selected"
+                  checked={exportType === 'selected'}
+                  onChange={(e) => setExportType(e.target.value as 'selected')}
+                  disabled={selectedIds.size === 0}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-blue-500 dark:focus:ring-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <span className={`ml-2 text-sm ${selectedIds.size === 0 ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>
+                  選択したデータ ({selectedIds.size}件)
+                </span>
+              </label>
+            </div>
           </div>
 
           {/* 文字コード設定 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               文字コード
             </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="encoding"
-                  value="utf-8"
-                  checked={options.encoding === 'utf-8'}
-                  onChange={(e) =>
-                    setOptions({
-                      ...options,
-                      encoding: e.target.value as CsvEncoding,
-                    })
-                  }
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm">UTF-8 (推奨)</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="encoding"
-                  value="shift-jis"
-                  checked={options.encoding === 'shift-jis'}
-                  onChange={(e) =>
-                    setOptions({
-                      ...options,
-                      encoding: e.target.value as CsvEncoding,
-                    })
-                  }
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm">Shift-JIS (Excel互換)</span>
-              </label>
-            </div>
+            <select
+              value={encoding}
+              onChange={(e) => setEncoding(e.target.value as 'utf-8' | 'shift-jis')}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+            >
+              <option value="utf-8">UTF-8</option>
+              <option value="shift-jis">Shift-JIS</option>
+            </select>
           </div>
 
           {/* 区切り文字設定 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               区切り文字
             </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="delimiter"
-                  value="comma"
-                  checked={options.delimiter === 'comma'}
-                  onChange={(e) =>
-                    setOptions({
-                      ...options,
-                      delimiter: e.target.value as CsvDelimiter,
-                    })
-                  }
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm">カンマ (,)</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="delimiter"
-                  value="tab"
-                  checked={options.delimiter === 'tab'}
-                  onChange={(e) =>
-                    setOptions({
-                      ...options,
-                      delimiter: e.target.value as CsvDelimiter,
-                    })
-                  }
-                  className="text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm">タブ (\t)</span>
-              </label>
-            </div>
+            <select
+              value={delimiter}
+              onChange={(e) => setDelimiter(e.target.value as 'comma' | 'tab')}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+            >
+              <option value="comma">カンマ (,)</option>
+              <option value="tab">タブ</option>
+            </select>
           </div>
 
-          {/* BOM設定 (UTF-8の場合のみ表示) */}
-          {options.encoding === 'utf-8' && (
+          {/* BOMオプション */}
+          {encoding === 'utf-8' && (
             <div>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center">
                 <input
                   type="checkbox"
-                  checked={options.includeBOM}
-                  onChange={(e) =>
-                    setOptions({
-                      ...options,
-                      includeBOM: e.target.checked,
-                    })
-                  }
-                  className="rounded text-blue-600 focus:ring-blue-500"
+                  checked={withBOM}
+                  onChange={(e) => setWithBOM(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-600"
                 />
-                <span className="text-sm">
-                  BOMを付与する (Excel互換性向上)
+                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                  BOM付きで出力（Excel互換性向上）
                 </span>
               </label>
-              <p className="text-xs text-gray-500 mt-1 ml-6">
-                Excelで文字化けを防ぐため、推奨設定です
-              </p>
             </div>
           )}
-        </div>
 
-        {/* フッター */}
-        <div className="flex gap-3 p-6 bg-gray-50 rounded-b-lg">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            キャンセル
-          </button>
-          <button
-            onClick={handleExport}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            ダウンロード
-          </button>
+          {/* プレビュー情報 */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <strong>{getExportCount()}件</strong>のデータを出力します
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+              ファイル名: {generateCsvFilename('deliveries')}
+            </p>
+          </div>
+
+          {/* アクションボタン */}
+          <div className="flex gap-3 pt-4">
+            <button
+              onClick={handleExport}
+              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white py-2 rounded-lg transition-colors"
+            >
+              <Download className="w-5 h-5" />
+              CSV出力
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-white py-2 rounded-lg transition-colors"
+            >
+              キャンセル
+            </button>
+          </div>
         </div>
       </div>
     </div>

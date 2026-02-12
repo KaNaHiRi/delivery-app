@@ -1,204 +1,162 @@
+// app/components/DashboardStats.tsx
 'use client';
 
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
-import { Package, Truck, CheckCircle, Clock } from 'lucide-react';
+import { useMemo } from 'react';
 import { Delivery } from '../types/delivery';
+import { Package, Truck, CheckCircle, Calendar } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface DashboardStatsProps {
   deliveries: Delivery[];
 }
 
-// ステータス表示名マッピング
-const STATUS_LABELS: Record<Delivery['status'], string> = {
-  pending: '未着手',
-  in_transit: '配送中',
-  completed: '完了',
-};
-
-// グラフの色
-const STATUS_COLORS: Record<Delivery['status'], string> = {
-  pending: '#f59e0b',
-  in_transit: '#3b82f6',
-  completed: '#10b981',
-};
-
 export default function DashboardStats({ deliveries }: DashboardStatsProps) {
-  // ── 集計処理 ──────────────────────────────────────────
-  // C# LINQ: deliveries.GroupBy(d => d.status).ToDictionary(g => g.Key, g => g.Count())
-  const statusCounts = deliveries.reduce<Record<string, number>>(
-    (acc, d) => {
-      acc[d.status] = (acc[d.status] ?? 0) + 1;
-      return acc;
-    },
-    {}
-  );
+  const stats = useMemo(() => {
+    const total = deliveries.length;
+    const pending = deliveries.filter(d => d.status === 'pending').length;
+    const inTransit = deliveries.filter(d => d.status === 'in_transit').length;
+    const completed = deliveries.filter(d => d.status === 'completed').length;
+    
+    const today = new Date().toISOString().split('T')[0];
+    const todayDeliveries = deliveries.filter(d => d.deliveryDate === today).length;
 
-  const total = deliveries.length;
-  const pending = statusCounts['pending'] ?? 0;
-  const inTransit = statusCounts['in_transit'] ?? 0;
-  const completed = statusCounts['completed'] ?? 0;
+    return { total, pending, inTransit, completed, todayDeliveries };
+  }, [deliveries]);
 
-  // 完了率（0除算ガード）
-  // C# LINQ: deliveries.Count(d => d.status == "completed") / (double)total * 100
-  const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-  // グラフ用データ
-  const barData = [
-    { name: '未着手', value: pending, fill: STATUS_COLORS.pending },
-    { name: '配送中', value: inTransit, fill: STATUS_COLORS.in_transit },
-    { name: '完了', value: completed, fill: STATUS_COLORS.completed },
+  const barChartData = [
+    { name: '配送待ち', count: stats.pending },
+    { name: '配送中', count: stats.inTransit },
+    { name: '完了', count: stats.completed },
   ];
 
-  const pieData = barData.filter((d) => d.value > 0);
-
-  // 今日の配送件数
-  // C# LINQ: deliveries.Count(d => d.deliveryDate == today)
-  const today = new Date().toISOString().split('T')[0];
-  const todayCount = deliveries.filter((d) => d.deliveryDate === today).length;
-
-  // ── カード定義 ──────────────────────────────────────────
-  const cards = [
-    {
-      label: '総配送件数',
-      value: total,
-      icon: Package,
-      color: 'bg-blue-50 text-blue-600',
-      border: 'border-blue-200',
-    },
-    {
-      label: '配送中',
-      value: inTransit,
-      icon: Truck,
-      color: 'bg-indigo-50 text-indigo-600',
-      border: 'border-indigo-200',
-    },
-    {
-      label: '完了',
-      value: completed,
-      icon: CheckCircle,
-      color: 'bg-green-50 text-green-600',
-      border: 'border-green-200',
-    },
-    {
-      label: '本日の配送',
-      value: todayCount,
-      icon: Clock,
-      color: 'bg-amber-50 text-amber-600',
-      border: 'border-amber-200',
-    },
+  const pieChartData = [
+    { name: '配送待ち', value: stats.pending },
+    { name: '配送中', value: stats.inTransit },
+    { name: '完了', value: stats.completed },
   ];
+
+  const COLORS = {
+    light: ['#fbbf24', '#3b82f6', '#10b981'],
+    dark: ['#f59e0b', '#2563eb', '#059669']
+  };
 
   return (
     <div className="mb-8 space-y-6">
-      {/* ── 集計カード ── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {cards.map(({ label, value, icon: Icon, color, border }) => (
-          <div
-            key={label}
-            className={`rounded-xl border ${border} bg-white p-4 shadow-sm`}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500">{label}</p>
-              <div className={`rounded-lg p-2 ${color}`}>
-                <Icon size={18} />
-              </div>
+      {/* 集計カード */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">総配送数</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
             </div>
-            <p className="mt-2 text-3xl font-bold text-gray-800">{value}</p>
-            {label === '完了' && total > 0 && (
-              <p className="mt-1 text-xs text-gray-400">完了率 {completionRate}%</p>
-            )}
+            <Package className="w-12 h-12 text-blue-500 dark:text-blue-400" />
           </div>
-        ))}
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">配送中</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.inTransit}</p>
+            </div>
+            <Truck className="w-12 h-12 text-yellow-500 dark:text-yellow-400" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">完了</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.completed}</p>
+            </div>
+            <CheckCircle className="w-12 h-12 text-green-500 dark:text-green-400" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">本日の配送</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats.todayDeliveries}</p>
+            </div>
+            <Calendar className="w-12 h-12 text-purple-500 dark:text-purple-400" />
+          </div>
+        </div>
       </div>
 
-      {/* ── グラフエリア ── */}
-      {total > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* 棒グラフ */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold text-gray-600">
-              ステータス別件数
-            </h3>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={barData} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-                <Tooltip
-                  formatter={(value: number | undefined) => 
-                    value !== undefined ? [`${value}件`, '件数'] : ['0件', '件数']
-                  }
-                />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {barData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* 円グラフ */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold text-gray-600">
-              ステータス構成比
-            </h3>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={70}
-                  paddingAngle={5}
-                  dataKey="value"
-                  label={false}
-                >
-                  {pieData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  formatter={(value: number | undefined) => 
-                    value !== undefined ? [`${value}件`] : ['0件']
-                  } 
-                />
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={36}
-                  formatter={(value) => {
-                    const item = pieData.find(d => d.name === value);
-                    const percent = item && pieData.length > 0
-                      ? ((item.value / pieData.reduce((sum, d) => sum + d.value, 0)) * 100).toFixed(0)
-                      : '0';
-                    return `${value} (${percent}%)`;
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+      {/* グラフエリア */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 棒グラフ */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ステータス別配送数</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={barChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis 
+                dataKey="name" 
+                tick={{ fill: 'currentColor' }}
+                className="text-gray-700 dark:text-gray-300"
+              />
+              <YAxis 
+                tick={{ fill: 'currentColor' }}
+                className="text-gray-700 dark:text-gray-300"
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'rgb(31 41 55)',
+                  border: '1px solid rgb(55 65 81)',
+                  borderRadius: '0.5rem',
+                  color: 'white'
+                }}
+              />
+              <Legend 
+                wrapperStyle={{ color: 'currentColor' }}
+                className="text-gray-700 dark:text-gray-300"
+              />
+              <Bar dataKey="count" fill="#3b82f6" name="配送数" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-      )}
 
-      {/* データなし */}
-      {total === 0 && (
-        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 py-8 text-center text-sm text-gray-400">
-          配送データがありません。データを追加するとグラフが表示されます。
+        {/* 円グラフ */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow transition-colors">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ステータス構成比</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={pieChartData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={(entry) => {
+                  const { name, percent } = entry;
+                  const percentage = percent ? (percent * 100).toFixed(0) : '0';
+                  return `${name} ${percentage}%`;
+                }}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {pieChartData.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={COLORS.dark[index % COLORS.dark.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'rgb(31 41 55)',
+                  border: '1px solid rgb(55 65 81)',
+                  borderRadius: '0.5rem',
+                  color: 'white'
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
-      )}
+      </div>
     </div>
   );
 }
