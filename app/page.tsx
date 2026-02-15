@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   Plus, Search, Download, Upload, Trash2, Package, 
   TrendingUp, CheckCircle, Clock, Sun, Moon, Printer,
-  Save, RotateCcw, Bell
+  Save, RotateCcw, Bell, BarChart3
 } from 'lucide-react';
 import { Delivery, NotificationSettings } from './types/delivery';
 import CsvExportModal from './components/CsvExportModal';
@@ -14,6 +14,7 @@ import ThemeToggle from './components/ThemeToggle';
 import PrintableDeliverySlip from './components/PrintableDeliverySlip';
 import BackupRestoreModal from './components/BackupRestoreModal';
 import NotificationSettingsModal from './components/NotificationSettingsModal';
+import AnalyticsModal from './components/AnalyticsModal';
 import {
   isNotificationSupported,
   requestNotificationPermission,
@@ -42,7 +43,7 @@ export default function Home() {
   const [isPrintPreview, setIsPrintPreview] = useState(false);
   const [printDeliveries, setPrintDeliveries] = useState<Delivery[]>([]);
   
-  // Day 14: 通知関連のstate追加
+  // Day 14: 通知関連のstate
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     enabled: false,
     deadlineAlert: true,
@@ -51,6 +52,9 @@ export default function Home() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const hasCheckedDeadline = useRef(false);
+
+  // Day 15: 分析モーダル
+  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -314,13 +318,21 @@ export default function Home() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">配送管理システム</h1>
               </div>
               <div className="flex items-center gap-2">
-                {/* Day 14: 通知設定ボタン追加 */}
+                {/* Day 14: 通知設定ボタン */}
                 <button
                   onClick={() => setShowNotificationSettings(true)}
                   className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   title="通知設定"
                 >
                   <Bell className="w-5 h-5" />
+                </button>
+                {/* Day 15: 分析ボタン追加 */}
+                <button
+                  onClick={() => setIsAnalyticsModalOpen(true)}
+                  className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  title="配送実績分析"
+                >
+                  <BarChart3 className="w-5 h-5" />
                 </button>
                 <ThemeToggle />
               </div>
@@ -644,6 +656,7 @@ export default function Home() {
       {/* モーダルコンポーネント群 */}
       {showExportModal && (
         <CsvExportModal
+          isOpen={showExportModal}
           deliveries={deliveries}
           filteredDeliveries={filteredDeliveries}
           selectedIds={selectedIds}
@@ -689,6 +702,13 @@ export default function Home() {
           onTestNotification={handleTestNotification}
         />
       )}
+
+      {/* Day 15: 分析モーダル */}
+      <AnalyticsModal
+        isOpen={isAnalyticsModalOpen}
+        onClose={() => setIsAnalyticsModalOpen(false)}
+        deliveries={filteredDeliveries}
+      />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// app/types/delivery.ts
 export interface Delivery {
   id: string;
   name: string;
@@ -6,12 +7,23 @@ export interface Delivery {
   deliveryDate: string;
 }
 
-// Day 14: 通知設定の型定義
 export interface NotificationSettings {
-  enabled: boolean;              // 通知全体の有効/無効
-  deadlineAlert: boolean;         // 配送期限アラートの有効/無効
-  statusChangeAlert: boolean;     // ステータス変更通知の有効/無効
+  enabled: boolean;
+  deadlineAlert: boolean;
+  statusChangeAlert: boolean;
 }
 
-// 通知許可状態の型定義
 export type NotificationPermission = 'granted' | 'denied' | 'default';
+
+// ★Day 17: 期間選択の型定義★
+export type PeriodType = 'week' | 'month' | 'last30days' | 'custom';
+
+export interface DateRange {
+  startDate: string;  // YYYY-MM-DD形式
+  endDate: string;    // YYYY-MM-DD形式
+}
+
+export interface PeriodSelection {
+  type: PeriodType;
+  dateRange?: DateRange;  // type='custom'の場合に使用
+}
