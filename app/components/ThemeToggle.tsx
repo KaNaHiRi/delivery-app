@@ -1,55 +1,58 @@
-// app/components/ThemeToggle.tsx
 'use client';
 
-import { Sun, Moon } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { Sun, Moon } from 'lucide-react';
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [mounted, setMounted] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    // 初期化
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    setIsMounted(true);
+    
+    // LocalStorageからテーマを読み込み
+    const stored = localStorage.getItem('theme');
+    const isDarkMode = stored === 'dark';
+    setIsDark(isDarkMode);
+    
+    // DOMにクラスを適用
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
     } else {
-      // システム設定に追従
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const initialTheme = prefersDark ? 'dark' : 'light';
-      setTheme(initialTheme);
-      document.documentElement.classList.toggle('dark', initialTheme === 'dark');
+      document.documentElement.classList.remove('dark');
     }
   }, []);
 
   const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+    const newIsDark = !isDark;
+    setIsDark(newIsDark);
+    
+    if (newIsDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
   };
 
-  // マウント前は何も表示しない
-  if (!mounted) {
+  // マウント前はプレースホルダーを表示（ちらつき防止）
+  if (!isMounted) {
     return (
-      <div className="p-2 w-9 h-9" />
+      <div className="p-2 rounded-lg">
+        <div className="w-5 h-5"></div>
+      </div>
     );
   }
 
   return (
     <button
       onClick={toggleTheme}
-      className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-      aria-label="テーマ切り替え"
-      title={theme === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え'}
+      className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+      title={isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
+      aria-label={isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
     >
-      {theme === 'light' ? (
-        <Moon className="w-5 h-5 text-gray-700" />
-      ) : (
-        <Sun className="w-5 h-5 text-yellow-400" />
-      )}
+      {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
     </button>
   );
 }

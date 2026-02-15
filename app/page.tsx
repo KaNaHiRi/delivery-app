@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   Plus, Search, Download, Upload, Trash2, Package, 
   TrendingUp, CheckCircle, Clock, Sun, Moon, Printer,
-  Save, RotateCcw, Bell, BarChart3
+  Save, RotateCcw, Bell, BarChart3, Filter, Star, Zap
 } from 'lucide-react';
-import { Delivery, NotificationSettings } from './types/delivery';
+import { Delivery, NotificationSettings, AdvancedFilters, FilterPreset, QuickFilterType } from './types/delivery';
 import CsvExportModal from './components/CsvExportModal';
 import CsvImportModal from './components/CsvImportModal';
 import DashboardStats from './components/DashboardStats';
@@ -15,6 +15,8 @@ import PrintableDeliverySlip from './components/PrintableDeliverySlip';
 import BackupRestoreModal from './components/BackupRestoreModal';
 import NotificationSettingsModal from './components/NotificationSettingsModal';
 import AnalyticsModal from './components/AnalyticsModal';
+import AdvancedFilterModal from './components/AdvancedFilterModal';
+import FilterPresetsModal from './components/FilterPresetsModal';
 import {
   isNotificationSupported,
   requestNotificationPermission,
@@ -24,6 +26,13 @@ import {
   loadNotificationSettings,
   saveNotificationSettings,
 } from './utils/notifications';
+import {
+  applyAdvancedFilters,
+  applyQuickFilter,
+  createEmptyFilters,
+  hasActiveFilters,
+  formatFilterDescription,
+} from './utils/filters';
 
 export default function Home() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -56,6 +65,16 @@ export default function Home() {
   // Day 15: 分析モーダル
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
 
+  // Day 18: 高度なフィルター機能
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(createEmptyFilters());
+  const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
+  const [showFilterPresets, setShowFilterPresets] = useState(false);
+  const [activeQuickFilter, setActiveQuickFilter] = useState<QuickFilterType | null>(null);
+
+  // Day 18: Hydration Error対策
+  const [isMounted, setIsMounted] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     address: '',
@@ -63,8 +82,15 @@ export default function Home() {
     deliveryDate: '',
   });
 
-  // LocalStorageからデータ読み込み
+  // Day 18: クライアントサイドマウント検知
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // LocalStorageからデータ読み込み（マウント後のみ）
+  useEffect(() => {
+    if (!isMounted) return;
+
     const stored = localStorage.getItem('delivery_app_data');
     if (stored) {
       setDeliveries(JSON.parse(stored));
@@ -86,23 +112,49 @@ export default function Home() {
     if (isNotificationSupported()) {
       setNotificationPermission(Notification.permission);
     }
-  }, []);
+
+    // Day 18: フィルタープリセットを読み込み
+    const storedPresets = localStorage.getItem('filter_presets');
+    if (storedPresets) {
+      setFilterPresets(JSON.parse(storedPresets));
+    }
+
+    // Day 18: 詳細フィルター設定を読み込み
+    const storedAdvancedFilters = localStorage.getItem('advanced_filters');
+    if (storedAdvancedFilters) {
+      setAdvancedFilters(JSON.parse(storedAdvancedFilters));
+    }
+  }, [isMounted]);
 
   // データ保存
   useEffect(() => {
+    if (!isMounted) return;
     if (deliveries.length > 0) {
       localStorage.setItem('delivery_app_data', JSON.stringify(deliveries));
     }
-  }, [deliveries]);
+  }, [deliveries, isMounted]);
 
   // フィルター保存
   useEffect(() => {
+    if (!isMounted) return;
     localStorage.setItem('delivery_app_filters', JSON.stringify({
       statusFilter,
       sortBy,
       sortOrder,
     }));
-  }, [statusFilter, sortBy, sortOrder]);
+  }, [statusFilter, sortBy, sortOrder, isMounted]);
+
+  // Day 18: 詳細フィルター保存
+  useEffect(() => {
+    if (!isMounted) return;
+    localStorage.setItem('advanced_filters', JSON.stringify(advancedFilters));
+  }, [advancedFilters, isMounted]);
+
+  // Day 18: プリセット保存
+  useEffect(() => {
+    if (!isMounted) return;
+    localStorage.setItem('filter_presets', JSON.stringify(filterPresets));
+  }, [filterPresets, isMounted]);
 
   // Day 14: 配送期限アラートチェック（初回のみ）
   useEffect(() => {
@@ -161,22 +213,86 @@ export default function Home() {
     }
   };
 
-  const filteredDeliveries = deliveries
-    .filter(delivery => {
-      const matchesSearch = delivery.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          delivery.address.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || delivery.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      let comparison = 0;
-      if (sortBy === 'name') {
-        comparison = a.name.localeCompare(b.name, 'ja');
-      } else {
-        comparison = new Date(a.deliveryDate).getTime() - new Date(b.deliveryDate).getTime();
-      }
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
+  // Day 18: 詳細フィルター適用
+  const handleApplyAdvancedFilters = (filters: AdvancedFilters) => {
+    setAdvancedFilters(filters);
+    setActiveQuickFilter(null); // クイックフィルターをクリア
+    setCurrentPage(1); // ページを1に戻す
+  };
+
+  // Day 18: 詳細フィルタークリア
+  const handleClearAdvancedFilters = () => {
+    setAdvancedFilters(createEmptyFilters());
+    setActiveQuickFilter(null);
+    setCurrentPage(1);
+  };
+
+  // Day 18: クイックフィルター適用
+  const handleQuickFilter = (filterType: QuickFilterType) => {
+    if (activeQuickFilter === filterType) {
+      // 同じフィルターをクリックした場合は解除
+      setActiveQuickFilter(null);
+    } else {
+      setActiveQuickFilter(filterType);
+      setAdvancedFilters(createEmptyFilters()); // 詳細フィルターをクリア
+    }
+    setCurrentPage(1);
+  };
+
+  // Day 18: プリセット保存
+  const handleSavePreset = (name: string) => {
+    const newPreset: FilterPreset = {
+      id: Date.now().toString(),
+      name,
+      filters: advancedFilters,
+      createdAt: new Date().toISOString(),
+    };
+    setFilterPresets([...filterPresets, newPreset]);
+  };
+
+  // Day 18: プリセット読み込み
+  const handleLoadPreset = (preset: FilterPreset) => {
+    setAdvancedFilters(preset.filters);
+    setActiveQuickFilter(null);
+    setCurrentPage(1);
+  };
+
+  // Day 18: プリセット削除
+  const handleDeletePreset = (id: string) => {
+    setFilterPresets(filterPresets.filter(p => p.id !== id));
+  };
+
+  // Day 18: フィルター適用ロジック
+  let filteredDeliveries = deliveries;
+
+  // まず検索とステータスフィルターを適用
+  filteredDeliveries = filteredDeliveries.filter(delivery => {
+    const matchesSearch = delivery.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        delivery.address.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || delivery.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  // クイックフィルターを適用
+  if (activeQuickFilter) {
+    filteredDeliveries = applyQuickFilter(filteredDeliveries, activeQuickFilter);
+  }
+
+  // 詳細フィルターを適用
+  if (hasActiveFilters(advancedFilters)) {
+    filteredDeliveries = applyAdvancedFilters(filteredDeliveries, advancedFilters);
+  }
+
+  // ソート
+  filteredDeliveries = filteredDeliveries.sort((a, b) => {
+    let comparison = 0;
+    if (sortBy === 'name') {
+      comparison = a.name.localeCompare(b.name, 'ja');
+    } else {
+      comparison = new Date(a.deliveryDate).getTime() - new Date(b.deliveryDate).getTime();
+    }
+    return sortOrder === 'asc' ? comparison : -comparison;
+  });
 
   const totalPages = Math.ceil(filteredDeliveries.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -300,6 +416,23 @@ export default function Home() {
     }
   };
 
+  // Day 18: クイックフィルターのラベルを取得
+  const getQuickFilterLabel = (filterType: QuickFilterType): string => {
+    switch (filterType) {
+      case 'today': return '今日配送';
+      case 'tomorrow': return '明日配送';
+      case 'this_week': return '今週配送';
+      case 'overdue': return '配送遅延';
+      case 'in_transit_only': return '配送中のみ';
+      case 'completed_today': return '本日完了';
+    }
+  };
+
+  // Day 18: マウント前は何も表示しない（Hydration Error回避）
+  if (!isMounted) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       {isPrintPreview && (
@@ -326,7 +459,7 @@ export default function Home() {
                 >
                   <Bell className="w-5 h-5" />
                 </button>
-                {/* Day 15: 分析ボタン追加 */}
+                {/* Day 15: 分析ボタン */}
                 <button
                   onClick={() => setIsAnalyticsModalOpen(true)}
                   className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -344,6 +477,32 @@ export default function Home() {
           <DashboardStats deliveries={deliveries} />
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-6 transition-colors">
+            {/* Day 18: クイックフィルターバー */}
+            <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  クイックフィルター
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(['today', 'tomorrow', 'this_week', 'overdue', 'in_transit_only', 'completed_today'] as QuickFilterType[]).map((filterType) => (
+                  <button
+                    key={filterType}
+                    type="button"
+                    onClick={() => handleQuickFilter(filterType)}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
+                      activeQuickFilter === filterType
+                        ? 'bg-orange-600 text-white shadow-md'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {getQuickFilterLabel(filterType)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4 mb-4">
               <div className="flex-1">
                 <div className="relative">
@@ -382,6 +541,72 @@ export default function Home() {
                 {sortOrder === 'asc' ? '昇順 ↑' : '降順 ↓'}
               </button>
             </div>
+
+            {/* Day 18: 詳細フィルター操作ボタン */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                onClick={() => setShowAdvancedFilter(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Filter className="w-5 h-5" />
+                詳細フィルター
+                {hasActiveFilters(advancedFilters) && (
+                  <span className="ml-1 px-2 py-0.5 bg-purple-800 rounded-full text-xs">ON</span>
+                )}
+              </button>
+              <button
+                onClick={() => setShowFilterPresets(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <Star className="w-5 h-5" />
+                プリセット
+                {filterPresets.length > 0 && (
+                  <span className="ml-1 px-2 py-0.5 bg-indigo-800 rounded-full text-xs">{filterPresets.length}</span>
+                )}
+              </button>
+              {(hasActiveFilters(advancedFilters) || activeQuickFilter) && (
+                <button
+                  onClick={handleClearAdvancedFilters}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  フィルタークリア
+                </button>
+              )}
+            </div>
+
+            {/* Day 18: 適用中のフィルター表示 */}
+            {(hasActiveFilters(advancedFilters) || activeQuickFilter) && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <Filter className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">
+                      適用中のフィルター:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {activeQuickFilter && (
+                        <span 
+                          key="quick-filter"
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 rounded text-xs"
+                        >
+                          <Zap className="w-3 h-3" />
+                          {getQuickFilterLabel(activeQuickFilter)}
+                        </span>
+                      )}
+                      {formatFilterDescription(advancedFilters).map((desc, idx) => (
+                        <span
+                          key={`filter-desc-${idx}`}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded text-xs"
+                        >
+                          {desc}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2 mb-4">
               <button
@@ -450,6 +675,17 @@ export default function Home() {
                     一括印刷 ({selectedIds.size})
                   </button>
                 </>
+              )}
+            </div>
+
+            {/* Day 18: 検索結果件数表示 */}
+            <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+              {filteredDeliveries.length !== deliveries.length ? (
+                <span>
+                  全{deliveries.length}件中 <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredDeliveries.length}件</span> を表示
+                </span>
+              ) : (
+                <span>全 {deliveries.length}件</span>
               )}
             </div>
 
@@ -690,7 +926,6 @@ export default function Home() {
         />
       )}
 
-      {/* Day 14: 通知設定モーダル */}
       {showNotificationSettings && (
         <NotificationSettingsModal
           isOpen={showNotificationSettings}
@@ -703,11 +938,29 @@ export default function Home() {
         />
       )}
 
-      {/* Day 15: 分析モーダル */}
       <AnalyticsModal
         isOpen={isAnalyticsModalOpen}
         onClose={() => setIsAnalyticsModalOpen(false)}
         deliveries={filteredDeliveries}
+      />
+
+      {/* Day 18: 詳細フィルターモーダル */}
+      <AdvancedFilterModal
+        isOpen={showAdvancedFilter}
+        onClose={() => setShowAdvancedFilter(false)}
+        filters={advancedFilters}
+        onApply={handleApplyAdvancedFilters}
+      />
+
+      {/* Day 18: フィルタープリセットモーダル */}
+      <FilterPresetsModal
+        isOpen={showFilterPresets}
+        onClose={() => setShowFilterPresets(false)}
+        presets={filterPresets}
+        currentFilters={advancedFilters}
+        onSavePreset={handleSavePreset}
+        onLoadPreset={handleLoadPreset}
+        onDeletePreset={handleDeletePreset}
       />
     </div>
   );

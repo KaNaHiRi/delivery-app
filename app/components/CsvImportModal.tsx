@@ -168,9 +168,10 @@ export default function CsvImportModal({ onClose, onImportComplete }: CsvImportM
                   <div className="text-sm text-blue-800 dark:text-blue-300">
                     <div className="font-medium mb-1">CSVファイルの形式</div>
                     <div className="text-xs space-y-1">
-                      <div>• ヘッダー行: ID,名前,住所,ステータス,配送日</div>
+                      <div>• ヘッダー行: 名前,住所,ステータス,配送日</div>
                       <div>• ステータス: 配送前/配送中/完了</div>
                       <div>• 配送日: YYYY-MM-DD 形式（例: 2024-01-15）</div>
+                      <div className="text-blue-600 dark:text-blue-400 mt-2">※ IDは自動生成されるため不要です</div>
                     </div>
                   </div>
                 </div>
