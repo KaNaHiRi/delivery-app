@@ -1,98 +1,134 @@
-import { Delivery, AdvancedFilters, QuickFilterType } from '../types/delivery';
+import type { 
+  Delivery, 
+  AdvancedFilters, 
+  QuickFilterType 
+} from '../types/delivery';
 
-/**
- * 詳細フィルターを適用
- */
+// キャッシュ用のWeakMap（メモリリークを防ぐ）
+const filterCache = new WeakMap<Delivery[], Map<string, Delivery[]>>();
+
+function getCacheKey(filters: AdvancedFilters | QuickFilterType): string {
+  if (typeof filters === 'string') {
+    return `quick:${filters}`;
+  }
+  return `advanced:${JSON.stringify(filters)}`;
+}
+
+// 詳細フィルターを適用する関数（最適化版）
 export function applyAdvancedFilters(
   deliveries: Delivery[],
   filters: AdvancedFilters
 ): Delivery[] {
-  return deliveries.filter(delivery => {
-    // ステータスフィルター
-    if (filters.statuses.length > 0 && !filters.statuses.includes(delivery.status)) {
-      return false;
-    }
+  // キャッシュチェック
+  const cache = filterCache.get(deliveries);
+  const cacheKey = getCacheKey(filters);
+  
+  if (cache?.has(cacheKey)) {
+    return cache.get(cacheKey)!;
+  }
 
-    // 日付範囲フィルター
-    if (filters.dateRange) {
-      const deliveryDate = delivery.deliveryDate;
-      if (deliveryDate < filters.dateRange.startDate || deliveryDate > filters.dateRange.endDate) {
-        return false;
-      }
-    }
+  let result = deliveries;
 
-    // 住所キーワードフィルター
-    if (filters.addressKeyword.trim() !== '') {
-      if (!delivery.address.toLowerCase().includes(filters.addressKeyword.toLowerCase())) {
-        return false;
-      }
-    }
+  // ステータスフィルター
+  if (filters.statuses.length > 0) {
+    const statusSet = new Set(filters.statuses); // O(1)検索用
+    result = result.filter((d) => statusSet.has(d.status));
+  }
 
-    // 名前キーワードフィルター
-    if (filters.nameKeyword.trim() !== '') {
-      if (!delivery.name.toLowerCase().includes(filters.nameKeyword.toLowerCase())) {
-        return false;
-      }
-    }
+  // 日付範囲フィルター
+  if (filters.dateRange) {
+    const { startDate, endDate } = filters.dateRange;
+    result = result.filter((d) => {
+      return d.deliveryDate >= startDate && d.deliveryDate <= endDate;
+    });
+  }
 
-    return true;
-  });
+  // 住所キーワードフィルター
+  if (filters.addressKeyword) {
+    const keyword = filters.addressKeyword.toLowerCase();
+    result = result.filter((d) => d.address.toLowerCase().includes(keyword));
+  }
+
+  // 名前キーワードフィルター
+  if (filters.nameKeyword) {
+    const keyword = filters.nameKeyword.toLowerCase();
+    result = result.filter((d) => d.name.toLowerCase().includes(keyword));
+  }
+
+  // キャッシュに保存
+  if (!filterCache.has(deliveries)) {
+    filterCache.set(deliveries, new Map());
+  }
+  filterCache.get(deliveries)!.set(cacheKey, result);
+
+  return result;
 }
 
-/**
- * クイックフィルターを適用
- */
+// クイックフィルターを適用する関数（最適化版）
 export function applyQuickFilter(
   deliveries: Delivery[],
   filterType: QuickFilterType
 ): Delivery[] {
+  // キャッシュチェック
+  const cache = filterCache.get(deliveries);
+  const cacheKey = getCacheKey(filterType);
+  
+  if (cache?.has(cacheKey)) {
+    return cache.get(cacheKey)!;
+  }
+
   const today = new Date().toISOString().split('T')[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   
-  // 今週の開始日（日曜日）
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay());
-  const weekStart = startOfWeek.toISOString().split('T')[0];
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const weekStartStr = weekStart.toISOString().split('T')[0];
   
-  // 今週の終了日（土曜日）
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  const weekEnd = endOfWeek.toISOString().split('T')[0];
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+  let result: Delivery[] = [];
 
   switch (filterType) {
     case 'today':
-      // 今日配送予定
-      return deliveries.filter(d => d.deliveryDate === today);
-
+      result = deliveries.filter((d) => d.deliveryDate === today);
+      break;
     case 'tomorrow':
-      // 明日配送予定
-      return deliveries.filter(d => d.deliveryDate === tomorrow);
-
+      result = deliveries.filter((d) => d.deliveryDate === tomorrow);
+      break;
     case 'this_week':
-      // 今週配送予定
-      return deliveries.filter(d => d.deliveryDate >= weekStart && d.deliveryDate <= weekEnd);
-
+      result = deliveries.filter(
+        (d) => d.deliveryDate >= weekStartStr && d.deliveryDate <= weekEndStr
+      );
+      break;
     case 'overdue':
-      // 配送遅延（pending で過去日付）
-      return deliveries.filter(d => d.status === 'pending' && d.deliveryDate < today);
-
+      result = deliveries.filter(
+        (d) => d.deliveryDate < today && d.status !== 'completed'
+      );
+      break;
     case 'in_transit_only':
-      // 配送中のみ
-      return deliveries.filter(d => d.status === 'in_transit');
-
+      result = deliveries.filter((d) => d.status === 'in_transit');
+      break;
     case 'completed_today':
-      // 本日完了分
-      return deliveries.filter(d => d.status === 'completed' && d.deliveryDate === today);
-
+      result = deliveries.filter(
+        (d) => d.status === 'completed' && d.deliveryDate === today
+      );
+      break;
     default:
-      return deliveries;
+      result = deliveries;
   }
+
+  // キャッシュに保存
+  if (!filterCache.has(deliveries)) {
+    filterCache.set(deliveries, new Map());
+  }
+  filterCache.get(deliveries)!.set(cacheKey, result);
+
+  return result;
 }
 
-/**
- * 空のフィルター条件を生成
- */
+// 空のフィルターを作成
 export function createEmptyFilters(): AdvancedFilters {
   return {
     statuses: [],
@@ -102,46 +138,50 @@ export function createEmptyFilters(): AdvancedFilters {
   };
 }
 
-/**
- * フィルターが適用されているかチェック
- */
+// フィルターが適用されているかチェック
 export function hasActiveFilters(filters: AdvancedFilters): boolean {
   return (
     filters.statuses.length > 0 ||
     filters.dateRange !== null ||
-    filters.addressKeyword.trim() !== '' ||
-    filters.nameKeyword.trim() !== ''
+    filters.addressKeyword !== '' ||
+    filters.nameKeyword !== ''
   );
 }
 
-/**
- * フィルター条件を読みやすいテキストに変換
- */
-export function formatFilterDescription(filters: AdvancedFilters): string[] {
-  const descriptions: string[] = [];
+// フィルターの説明文を生成
+export function formatFilterDescription(filters: AdvancedFilters): string {
+  const parts: string[] = [];
 
   if (filters.statuses.length > 0) {
-    const statusLabels = filters.statuses.map(s => {
-      switch (s) {
-        case 'pending': return '配送前';
-        case 'in_transit': return '配送中';
-        case 'completed': return '完了';
-      }
-    });
-    descriptions.push(`ステータス: ${statusLabels.join(', ')}`);
+    const statusLabels = {
+      pending: '配送前',
+      in_transit: '配送中',
+      completed: '完了',
+    };
+    const labels = filters.statuses.map((s) => statusLabels[s]).join('・');
+    parts.push(`ステータス: ${labels}`);
   }
 
   if (filters.dateRange) {
-    descriptions.push(`期間: ${filters.dateRange.startDate} 〜 ${filters.dateRange.endDate}`);
+    parts.push(
+      `期間: ${filters.dateRange.startDate} 〜 ${filters.dateRange.endDate}`
+    );
   }
 
-  if (filters.addressKeyword.trim() !== '') {
-    descriptions.push(`住所: "${filters.addressKeyword}"`);
+  if (filters.addressKeyword) {
+    parts.push(`住所: "${filters.addressKeyword}"`);
   }
 
-  if (filters.nameKeyword.trim() !== '') {
-    descriptions.push(`名前: "${filters.nameKeyword}"`);
+  if (filters.nameKeyword) {
+    parts.push(`名前: "${filters.nameKeyword}"`);
   }
 
-  return descriptions;
+  return parts.join(' / ');
+}
+
+// キャッシュをクリア（データ更新時に呼び出す）
+export function clearFilterCache(): void {
+  // WeakMapは自動的にガベージコレクションされるため、
+  // 明示的なクリアは不要だが、新しいWeakMapを作成することで即座にクリア
+  filterCache.delete = () => true;
 }

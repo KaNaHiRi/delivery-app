@@ -1,97 +1,106 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-import { Package, TrendingUp, CheckCircle, Clock } from 'lucide-react';
+import { useMemo, useState, useEffect, memo } from 'react';
+import { Package, Truck, CheckCircle, Calendar } from 'lucide-react';
 import { Delivery } from '../types/delivery';
+import { usePerformanceMonitor } from '../utils/performance';
 
 interface DashboardStatsProps {
   deliveries: Delivery[];
 }
 
-export default function DashboardStats({ deliveries }: DashboardStatsProps) {
+// React.memoで最適化（deliveriesが変わらない限り再レンダリングしない）
+const DashboardStats = memo(function DashboardStats({ deliveries }: DashboardStatsProps) {
+  usePerformanceMonitor('DashboardStats');
+  
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // 統計データをuseMemoで最適化
   const stats = useMemo(() => {
-    const total = deliveries.length;
-    const inTransit = deliveries.filter(d => d.status === 'in_transit').length;
-    const completed = deliveries.filter(d => d.status === 'completed').length;
-    
     const today = new Date().toISOString().split('T')[0];
-    const todayDeliveries = deliveries.filter(d => d.deliveryDate === today).length;
-
-    return { total, inTransit, completed, todayDeliveries };
+    
+    return {
+      total: deliveries.length,
+      inTransit: deliveries.filter((d) => d.status === 'in_transit').length,
+      completed: deliveries.filter((d) => d.status === 'completed').length,
+      todayDeliveries: deliveries.filter((d) => d.deliveryDate === today).length,
+    };
   }, [deliveries]);
 
-  // マウント前はスケルトン表示
   if (!isMounted) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-            <div className="h-20 animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {[...Array(4)].map((_, i) => (
+          <div
+            key={i}
+            className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow animate-pulse"
+          >
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20 mb-2"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
           </div>
         ))}
       </div>
     );
   }
 
+  const statCards = [
+    {
+      title: '総件数',
+      value: stats.total,
+      icon: Package,
+      color: 'blue',
+    },
+    {
+      title: '配送中',
+      value: stats.inTransit,
+      icon: Truck,
+      color: 'yellow',
+    },
+    {
+      title: '完了',
+      value: stats.completed,
+      icon: CheckCircle,
+      color: 'green',
+    },
+    {
+      title: '本日の配送',
+      value: stats.todayDeliveries,
+      icon: Calendar,
+      color: 'purple',
+    },
+  ];
+
+  const colorClasses = {
+    blue: 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300',
+    yellow: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300',
+    green: 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300',
+    purple: 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300',
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      {/* 総配送数 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">総配送数</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.total}</p>
-          </div>
-          <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-            <Package className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-        </div>
-      </div>
-
-      {/* 配送中 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">配送中</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.inTransit}</p>
-          </div>
-          <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-            <TrendingUp className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {statCards.map((card) => (
+        <div
+          key={card.title}
+          className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{card.title}</p>
+              <p className="text-3xl font-bold mt-2">{card.value}</p>
+            </div>
+            <div className={`p-3 rounded-lg ${colorClasses[card.color as keyof typeof colorClasses]}`}>
+              <card.icon className="w-6 h-6" />
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* 完了 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">完了</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.completed}</p>
-          </div>
-          <div className="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
-            <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
-          </div>
-        </div>
-      </div>
-
-      {/* 本日の配送 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">本日の配送</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.todayDeliveries}</p>
-          </div>
-          <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
-            <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-          </div>
-        </div>
-      </div>
+      ))}
     </div>
   );
-}
+});
+
+export default DashboardStats;
