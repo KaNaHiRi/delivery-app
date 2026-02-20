@@ -96,7 +96,6 @@ export default function Home() {
     setIsMounted(true);
   }, []);
 
-  // ロケール取得（Cookieから）
   useEffect(() => {
     const cookieLocale = document.cookie
       .split(';')
@@ -148,14 +147,12 @@ export default function Home() {
     localStorage.setItem('filter_presets', JSON.stringify(filterPresets));
   }, [filterPresets, isMounted]);
 
-  // ステータスラベル（i18n対応）
   const statusLabels = useMemo(() => ({
     pending: tStatus('pending'),
     in_transit: tStatus('in_transit'),
     completed: tStatus('completed'),
   }), [tStatus]);
 
-  // クイックフィルター（i18n対応）
   const quickFilters: { type: QuickFilterType; label: string; icon: string }[] = useMemo(() => [
     { type: 'today', label: tFilter('today'), icon: '📅' },
     { type: 'tomorrow', label: tFilter('tomorrow'), icon: '📆' },
@@ -165,7 +162,6 @@ export default function Home() {
     { type: 'completed_today', label: tFilter('completedToday'), icon: '✅' },
   ], [tFilter]);
 
-  // フィルタリング・ソート
   const filteredAndSortedDeliveries = useMemo(() => {
     let result = deliveries;
 
@@ -381,7 +377,7 @@ export default function Home() {
                 aria-label="分析モーダルを開く"
               >
                 <BarChart3 className="w-4 h-4" aria-hidden="true" />
-                <span>{tCommon('filter')}</span>
+                <span>{tCommon('analytics') ?? 'Analytics'}</span>
               </button>
               <button
                 onClick={() => setShowNotificationSettings(true)}
@@ -399,7 +395,6 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
-        {/* 統計ダッシュボード */}
         <DashboardStats deliveries={deliveries} />
 
         {/* クイックフィルター */}
@@ -529,7 +524,7 @@ export default function Home() {
               aria-label="フィルタープリセットを開く"
             >
               <Bookmark className="w-4 h-4" aria-hidden="true" />
-              プリセット
+              {tCommon('presets')}
             </button>
 
             {/* 新規登録 */}
@@ -567,7 +562,7 @@ export default function Home() {
               aria-label="バックアップまたはリストア"
             >
               <Save className="w-4 h-4" aria-hidden="true" />
-              バックアップ/リストア
+              {tCommon('backupRestore')}
             </button>
             {selectedIds.size > 0 && (
               <>
@@ -576,7 +571,7 @@ export default function Home() {
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                   aria-label={`選択した${selectedIds.size}件を印刷`}
                 >
-                  選択を印刷 ({selectedIds.size})
+                  {tCommon('print')} ({selectedIds.size})
                 </button>
                 <button
                   onClick={() => handleBulkStatusChange('in_transit')}
@@ -664,7 +659,7 @@ export default function Home() {
                     role="columnheader"
                     scope="col"
                   >
-                    アクション
+                    {tCommon('action')}
                   </th>
                 </tr>
               </thead>
@@ -718,7 +713,7 @@ export default function Home() {
                               className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200"
                               aria-label={`${delivery.name}の配送伝票を印刷`}
                             >
-                              印刷
+                              {tCommon('print')}
                             </button>
                             <button
                               onClick={() => handleDelete(delivery.id)}

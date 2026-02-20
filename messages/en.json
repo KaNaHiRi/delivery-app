@@ -14,7 +14,12 @@
     "confirm": "Confirm",
     "reset": "Reset",
     "loading": "Loading...",
-    "noData": "No data available"
+    "noData": "No data available",
+    "print": "Print",
+    "action": "Action",
+    "backupRestore": "Backup / Restore",
+    "presets": "Presets",
+    "analytics": "Analytics"
   },
   "status": {
     "pending": "Pending",
