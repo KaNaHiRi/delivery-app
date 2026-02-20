@@ -1,0 +1,78 @@
+{
+  "common": {
+    "appTitle": "Delivery Management System",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "close": "Close",
+    "confirm": "Confirm",
+    "reset": "Reset",
+    "loading": "Loading...",
+    "noData": "No data available"
+  },
+  "status": {
+    "pending": "Pending",
+    "in_transit": "In Transit",
+    "completed": "Completed"
+  },
+  "delivery": {
+    "id": "ID",
+    "name": "Name",
+    "address": "Address",
+    "status": "Status",
+    "deliveryDate": "Delivery Date",
+    "addNew": "Add New Delivery",
+    "editDelivery": "Edit Delivery",
+    "deleteConfirm": "Are you sure you want to delete this delivery?",
+    "bulkDelete": "Bulk Delete",
+    "bulkDeleteConfirm": "Delete {count} deliveries?",
+    "totalCount": "{count} items total"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "total": "Total",
+    "pending": "Pending",
+    "inTransit": "In Transit",
+    "completed": "Completed",
+    "completionRate": "Completion Rate",
+    "todayDeliveries": "Today's Deliveries"
+  },
+  "nav": {
+    "deliveryList": "Delivery List",
+    "dashboard": "Dashboard",
+    "analytics": "Analytics",
+    "settings": "Settings"
+  },
+  "filter": {
+    "allStatus": "All Status",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This Week",
+    "overdue": "Overdue",
+    "inTransitOnly": "In Transit Only",
+    "completedToday": "Completed Today"
+  },
+  "csv": {
+    "export": "CSV Export",
+    "import": "CSV Import",
+    "downloadTemplate": "Download Template"
+  },
+  "pwa": {
+    "installTitle": "Install App",
+    "installDescription": "Add to home screen for offline access.",
+    "install": "Install",
+    "dismiss": "Not now",
+    "offlineMessage": "You are offline. Some features may be limited."
+  },
+  "language": {
+    "ja": "日本語",
+    "en": "English",
+    "switchLanguage": "Switch Language"
+  }
+}

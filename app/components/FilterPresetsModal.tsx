@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Trash2, Filter } from 'lucide-react';
 import { FilterPreset, AdvancedFilters } from '../types/delivery';
-import { formatFilterDescription } from '../utils/filters';
+import { formatFilterDescriptionArray } from '../utils/filters';
 
 interface FilterPresetsModalProps {
   isOpen: boolean;
@@ -27,7 +27,7 @@ export default function FilterPresetsModal({
   const [presetName, setPresetName] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
 
-  // ★★★ 追加: モーダルが閉じたときにフォームをリセット ★★★
+  // モーダルが閉じたときにフォームをリセット
   useEffect(() => {
     if (!isOpen) {
       setPresetName('');
@@ -117,10 +117,10 @@ export default function FilterPresetsModal({
                 {/* 現在のフィルター内容プレビュー */}
                 <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">保存される条件:</p>
-                  {formatFilterDescription(currentFilters).map((desc, idx) => (
+                  {formatFilterDescriptionArray(currentFilters).map((desc, idx) => (
                     <p key={idx} className="text-sm text-gray-900 dark:text-white">• {desc}</p>
                   ))}
-                  {formatFilterDescription(currentFilters).length === 0 && (
+                  {formatFilterDescriptionArray(currentFilters).length === 0 && (
                     <p className="text-sm text-gray-500 dark:text-gray-400">フィルター条件なし</p>
                   )}
                 </div>
@@ -168,7 +168,7 @@ export default function FilterPresetsModal({
                       </div>
                     </div>
                     <div className="space-y-1">
-                      {formatFilterDescription(preset.filters).map((desc, idx) => (
+                      {formatFilterDescriptionArray(preset.filters).map((desc, idx) => (
                         <p key={idx} className="text-sm text-gray-600 dark:text-gray-400">
                           • {desc}
                         </p>

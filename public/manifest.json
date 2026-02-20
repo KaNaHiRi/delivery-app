@@ -1,0 +1,13 @@
+{
+  "name": "配送管理システム",
+  "short_name": "配送管理",
+  "description": "Next.jsで構築した配送管理システム。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#3b82f6",
+  "orientation": "any",
+  "lang": "ja",
+  "icons": [],
+  "categories": ["business", "productivity"]
+}

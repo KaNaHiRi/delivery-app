@@ -6,12 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "next lint",
+    "test": "jest --watch",
+    "test:ci": "jest --ci",
+    "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "@types/react-window": "^1.8.8",
     "lucide-react": "^0.563.0",
     "next": "16.1.5",
+    "next-intl": "^4.8.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-window": "^2.2.7",
@@ -19,14 +26,26 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@axe-core/react": "^4.11.1",
+    "@playwright/test": "^1.58.2",
+    "@swc/core": "^1.15.11",
+    "@swc/jest": "^0.2.39",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-window": "^1.8.8",
+    "autoprefixer": "^10.4.24",
     "eslint": "^8",
     "eslint-config-next": "15.1.4",
-    "postcss": "^8",
-    "tailwindcss": "^4.0.0",
+    "jest": "^30.2.0",
+    "jest-axe": "^10.0.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5"
   }
 }

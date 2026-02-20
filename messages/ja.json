@@ -1,0 +1,77 @@
+{
+  "common": {
+    "appTitle": "配送管理システム",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "edit": "編集",
+    "add": "追加",
+    "search": "検索",
+    "filter": "フィルター",
+    "export": "エクスポート",
+    "import": "インポート",
+    "close": "閉じる",
+    "confirm": "確認",
+    "reset": "リセット",
+    "loading": "読み込み中...",
+    "noData": "データがありません"
+  },
+  "status": {
+    "pending": "未着手",
+    "in_transit": "配送中",
+    "completed": "完了"
+  },
+  "delivery": {
+    "id": "ID",
+    "name": "名前",
+    "address": "住所",
+    "status": "ステータス",
+    "deliveryDate": "配送日",
+    "addNew": "新規配送追加",
+    "editDelivery": "配送情報編集",
+    "deleteConfirm": "この配送を削除しますか？",
+    "bulkDelete": "一括削除",
+    "bulkDeleteConfirm": "{count}件の配送を削除しますか？",
+    "totalCount": "全{count}件"
+  },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "total": "総件数",
+    "pending": "未着手",
+    "inTransit": "配送中",
+    "completed": "完了",
+    "completionRate": "完了率"
+  },
+  "nav": {
+    "deliveryList": "配送一覧",
+    "dashboard": "ダッシュボード",
+    "analytics": "分析",
+    "settings": "設定"
+  },
+  "filter": {
+    "allStatus": "全ステータス",
+    "today": "今日",
+    "tomorrow": "明日",
+    "thisWeek": "今週",
+    "overdue": "期限切れ",
+    "inTransitOnly": "配送中のみ",
+    "completedToday": "本日完了"
+  },
+  "csv": {
+    "export": "CSV出力",
+    "import": "CSVインポート",
+    "downloadTemplate": "テンプレートダウンロード"
+  },
+  "pwa": {
+    "installTitle": "アプリをインストール",
+    "installDescription": "ホーム画面に追加して、オフラインでも使用できます。",
+    "install": "インストール",
+    "dismiss": "今は不要",
+    "offlineMessage": "オフラインです。一部機能が制限されます。"
+  },
+  "language": {
+    "ja": "日本語",
+    "en": "English",
+    "switchLanguage": "言語切替"
+  }
+}

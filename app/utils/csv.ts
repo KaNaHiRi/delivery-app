@@ -1,144 +1,206 @@
-import { Delivery } from '../types/delivery';
+import type { Delivery } from '../types/delivery';
 
-// ステータスの日本語変換
-const getStatusLabel = (status: Delivery['status']): string => {
-  const labels = {
-    pending: '配送前',
-    in_transit: '配送中',
-    completed: '完了'
-  };
-  return labels[status];
-};
-
-// CSV出力オプション
-export interface CsvExportOptions {
-  encoding?: 'utf8' | 'sjis';
-  delimiter?: 'comma' | 'tab';
-  includeBOM?: boolean;
-  filename?: string;
+export interface CSVExportOptions {
+  encoding: 'utf-8' | 'shift-jis';
+  delimiter: ',' | '\t';
+  includeBOM: boolean;
 }
 
-// CSV文字列生成
-const generateCsvString = (
+export interface CSVParseResult {
+  data: Delivery[];
+  errors: string[];
+}
+
+/**
+ * 配送データをCSV文字列に変換
+ */
+export function generateCSV(
   deliveries: Delivery[],
-  delimiter: 'comma' | 'tab'
-): string => {
-  const delim = delimiter === 'comma' ? ',' : '\t';
+  options: CSVExportOptions
+): string {
+  const { delimiter, includeBOM } = options;
   
-  // ヘッダー行（IDは除外）
-  const headers = ['名前', '住所', 'ステータス', '配送日'];
-  const headerRow = headers.join(delim);
+  // ヘッダー行
+  const headers = ['ID', '名前', '住所', 'ステータス', '配送日'];
+  let csv = headers.join(delimiter) + '\n';
   
   // データ行
-  const dataRows = deliveries.map(d => {
+  deliveries.forEach((delivery) => {
+    const statusMap: Record<Delivery['status'], string> = {
+      pending: '配送前',
+      in_transit: '配送中',
+      completed: '配送完了',
+    };
+    
     const row = [
-      d.name,
-      d.address,
-      getStatusLabel(d.status),
-      d.deliveryDate
+      delivery.id,
+      delivery.name,
+      delivery.address,
+      statusMap[delivery.status],
+      delivery.deliveryDate,
     ];
-    return row.map(cell => `"${cell}"`).join(delim);
+    
+    csv += row.join(delimiter) + '\n';
   });
   
-  return [headerRow, ...dataRows].join('\n');
-};
-
-// CSV エクスポート
-export const exportToCSV = (
-  deliveries: Delivery[],
-  options: CsvExportOptions = {}
-): void => {
-  const {
-    encoding = 'utf8',
-    delimiter = 'comma',
-    includeBOM = true,
-    filename = 'deliveries'
-  } = options;
-  
-  // CSV文字列生成
-  const csvString = generateCsvString(deliveries, delimiter);
-  
-  // BOM付与（UTF-8の場合）
-  const bom = includeBOM && encoding === 'utf8' ? '\uFEFF' : '';
-  const content = bom + csvString;
-  
-  // Blob作成
-  let blob: Blob;
-  if (encoding === 'sjis') {
-    const encoder = new TextEncoder();
-    const uint8Array = encoder.encode(content);
-    blob = new Blob([uint8Array], { type: 'text/csv;charset=Shift-JIS' });
-  } else {
-    blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  // BOM追加
+  if (includeBOM) {
+    csv = '\uFEFF' + csv;
   }
   
-  // ダウンロード
-  const url = URL.createObjectURL(blob);
+  return csv;
+}
+
+/**
+ * CSV文字列を配送データに変換
+ */
+export function parseCSV(csvContent: string): CSVParseResult {
+  const lines = csvContent.trim().split('\n');
+  const data: Delivery[] = [];
+  const errors: string[] = [];
+  
+  // ヘッダー行をスキップ
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const columns = line.split(',');
+    
+    // バリデーション
+    if (columns.length < 5) {
+      errors.push(`行 ${i + 1}: 列数が不足しています`);
+      continue;
+    }
+    
+    const [id, name, address, status, deliveryDate] = columns;
+    
+    // 必須項目チェック
+    if (!name || !name.trim()) {
+      errors.push(`行 ${i + 1}: 名前が入力されていません`);
+      continue;
+    }
+    
+    if (!address || !address.trim()) {
+      errors.push(`行 ${i + 1}: 住所が入力されていません`);
+      continue;
+    }
+    
+    // ステータスチェック
+    const statusMap: Record<string, Delivery['status']> = {
+      '配送前': 'pending',
+      '配送中': 'in_transit',
+      '配送完了': 'completed',
+      'pending': 'pending',
+      'in_transit': 'in_transit',
+      'completed': 'completed',
+    };
+    
+    const normalizedStatus = statusMap[status];
+    if (!normalizedStatus) {
+      errors.push(`行 ${i + 1}: ステータスが不正です（${status}）`);
+      continue;
+    }
+    
+    // 日付チェック
+    if (!deliveryDate || !deliveryDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      errors.push(`行 ${i + 1}: 配送日の形式が不正です（${deliveryDate}）`);
+      continue;
+    }
+    
+    // データ追加
+    data.push({
+      id: id || `DEL${Date.now()}_${i}`,
+      name: name.trim(),
+      address: address.trim(),
+      status: normalizedStatus,
+      deliveryDate: deliveryDate.trim(),
+    });
+  }
+  
+  return { data, errors };
+}
+
+/**
+ * CSVデータのバリデーション
+ */
+export function validateCsvData(data: any[]): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (!Array.isArray(data)) {
+    errors.push('データが配列ではありません');
+    return { isValid: false, errors };
+  }
+  
+  if (data.length === 0) {
+    errors.push('データが空です');
+    return { isValid: false, errors };
+  }
+  
+  data.forEach((item, index) => {
+    if (!item.name || typeof item.name !== 'string') {
+      errors.push(`行 ${index + 1}: 名前が不正です`);
+    }
+    if (!item.address || typeof item.address !== 'string') {
+      errors.push(`行 ${index + 1}: 住所が不正です`);
+    }
+    if (!['pending', 'in_transit', 'completed'].includes(item.status)) {
+      errors.push(`行 ${index + 1}: ステータスが不正です`);
+    }
+    if (!item.deliveryDate || !item.deliveryDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      errors.push(`行 ${index + 1}: 配送日が不正です`);
+    }
+  });
+  
+  return { isValid: errors.length === 0, errors };
+}
+
+/**
+ * CSVエクスポート（ダウンロード）
+ */
+export function exportToCSV(
+  deliveries: Delivery[],
+  options: CSVExportOptions,
+  filename: string
+): void {
+  const csvContent = generateCSV(deliveries, options);
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
-  link.href = url;
+  const url = URL.createObjectURL(blob);
   
-  // タイムスタンプ付きファイル名
-  const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-  link.download = `${filename}_${timestamp}.csv`;
-  
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-};
+}
 
-// CSVインポート用のパース関数
-export const parseCSV = (csvText: string): any[] => {
-  const lines = csvText.split('\n').filter(line => line.trim());
-  if (lines.length < 2) return [];
+/**
+ * CSVファイルをダウンロード
+ */
+export function downloadCSV(csvContent: string, filename: string): void {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
   
-  // ヘッダー行を解析
-  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-  
-  // データ行を解析
-  return lines.slice(1).map((line, index) => {
-    const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-    
-    const row: any = { lineNumber: index + 2 };
-    headers.forEach((header, i) => {
-      row[header] = values[i] || '';
-    });
-    
-    return row;
-  });
-};
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
-// CSVバリデーション（ID列は無視）
-export const validateCsvData = (data: any[]): { isValid: boolean; errors: string[] } => {
-  const errors: string[] = [];
-  
-  data.forEach((row) => {
-    const lineNum = row.lineNumber;
-    
-    // 名前チェック
-    if (!row['名前'] || row['名前'].trim() === '') {
-      errors.push(`${lineNum}行目: 名前が入力されていません`);
-    }
-    
-    // 住所チェック
-    if (!row['住所'] || row['住所'].trim() === '') {
-      errors.push(`${lineNum}行目: 住所が入力されていません`);
-    }
-    
-    // ステータスチェック
-    const validStatuses = ['配送前', '配送中', '完了', 'pending', 'in_transit', 'completed'];
-    if (!row['ステータス'] || !validStatuses.includes(row['ステータス'])) {
-      errors.push(`${lineNum}行目: ステータスが不正です（配送前/配送中/完了のいずれかを指定）`);
-    }
-    
-    // 配送日チェック
-    if (!row['配送日'] || !/^\d{4}-\d{2}-\d{2}$/.test(row['配送日'])) {
-      errors.push(`${lineNum}行目: 配送日の形式が不正です（YYYY-MM-DD形式で入力）`);
-    }
-  });
-  
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
-};
+/**
+ * タイムスタンプ付きファイル名を生成
+ */
+export function generateFilename(prefix: string, extension: string): string {
+  const now = new Date();
+  const timestamp = now
+    .toISOString()
+    .replace(/[:.]/g, '-')
+    .slice(0, -5);
+  return `${prefix}_${timestamp}.${extension}`;
+}

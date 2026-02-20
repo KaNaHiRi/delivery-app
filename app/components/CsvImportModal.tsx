@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { X, Upload, AlertCircle, CheckCircle, FileText } from 'lucide-react';
 import { Delivery } from '../types/delivery';
-import { parseCSV, validateCsvData } from '../utils/csv';
+import { parseCSV } from '../utils/csv';
 
 interface CsvImportModalProps {
   onClose: () => void;
@@ -22,41 +22,19 @@ export default function CsvImportModal({ onClose, onImportComplete }: CsvImportM
   const handleFileRead = async (selectedFile: File) => {
     try {
       const text = await selectedFile.text();
-      const parsedData = parseCSV(text);
+      const result = parseCSV(text);
       
-      if (parsedData.length === 0) {
+      if (result.errors.length > 0) {
+        setErrors(result.errors);
+        return;
+      }
+      
+      if (result.data.length === 0) {
         setErrors(['CSVファイルが空です']);
         return;
       }
 
-      // バリデーション
-      const validation = validateCsvData(parsedData);
-      
-      if (!validation.isValid) {
-        setErrors(validation.errors);
-        return;
-      }
-
-      // Delivery型に変換
-      const deliveries: Delivery[] = parsedData.map(row => {
-        // ステータスの変換（日本語 → 英語）
-        let status: Delivery['status'] = 'pending';
-        if (row['ステータス'] === '配送中' || row['ステータス'] === 'in_transit') {
-          status = 'in_transit';
-        } else if (row['ステータス'] === '完了' || row['ステータス'] === 'completed') {
-          status = 'completed';
-        }
-
-        return {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          name: row['名前'],
-          address: row['住所'],
-          status,
-          deliveryDate: row['配送日']
-        };
-      });
-
-      setPreviewData(deliveries);
+      setPreviewData(result.data);
       setErrors([]);
       setStep('preview');
     } catch (error) {
@@ -168,10 +146,10 @@ export default function CsvImportModal({ onClose, onImportComplete }: CsvImportM
                   <div className="text-sm text-blue-800 dark:text-blue-300">
                     <div className="font-medium mb-1">CSVファイルの形式</div>
                     <div className="text-xs space-y-1">
-                      <div>• ヘッダー行: 名前,住所,ステータス,配送日</div>
-                      <div>• ステータス: 配送前/配送中/完了</div>
+                      <div>• ヘッダー行: ID,名前,住所,ステータス,配送日</div>
+                      <div>• ステータス: pending / in_transit / completed（または 配送前/配送中/配送完了）</div>
                       <div>• 配送日: YYYY-MM-DD 形式（例: 2024-01-15）</div>
-                      <div className="text-blue-600 dark:text-blue-400 mt-2">※ IDは自動生成されるため不要です</div>
+                      <div className="text-blue-600 dark:text-blue-400 mt-2">※ IDは省略可（自動生成されます）</div>
                     </div>
                   </div>
                 </div>

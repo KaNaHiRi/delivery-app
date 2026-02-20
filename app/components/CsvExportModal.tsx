@@ -26,8 +26,8 @@ export default function CsvExportModal({
 }: CsvExportModalProps) {
   const [exportScope, setExportScope] = useState<ExportScope>('filtered');
   const [fileFormat, setFileFormat] = useState<FileFormat>('csv');
-  const [encoding, setEncoding] = useState<'utf8' | 'sjis'>('utf8');
-  const [delimiter, setDelimiter] = useState<'comma' | 'tab'>('comma');
+  const [encoding, setEncoding] = useState<'utf-8' | 'shift-jis'>('utf-8');
+  const [delimiter, setDelimiter] = useState<',' | '\t'>(',');
   const [includeBOM, setIncludeBOM] = useState(true);
 
   if (!isOpen) return null;
@@ -57,15 +57,17 @@ export default function CsvExportModal({
 
     if (fileFormat === 'csv') {
       // CSV出力
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const filename = `deliveries_${timestamp}.csv`;
+      
       exportToCSV(data, {
         encoding,
         delimiter,
         includeBOM,
-        filename: 'deliveries'
-      });
+      }, filename);
     } else {
       // Excel出力
-      exportToExcel(data, 'deliveries');
+      exportToExcel(data, exportScope);
     }
     
     onClose();
@@ -201,9 +203,9 @@ export default function CsvExportModal({
                     <input
                       type="radio"
                       name="encoding"
-                      value="utf8"
-                      checked={encoding === 'utf8'}
-                      onChange={(e) => setEncoding(e.target.value as 'utf8' | 'sjis')}
+                      value="utf-8"
+                      checked={encoding === 'utf-8'}
+                      onChange={(e) => setEncoding(e.target.value as 'utf-8' | 'shift-jis')}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-900 dark:text-white">UTF-8</span>
@@ -212,9 +214,9 @@ export default function CsvExportModal({
                     <input
                       type="radio"
                       name="encoding"
-                      value="sjis"
-                      checked={encoding === 'sjis'}
-                      onChange={(e) => setEncoding(e.target.value as 'utf8' | 'sjis')}
+                      value="shift-jis"
+                      checked={encoding === 'shift-jis'}
+                      onChange={(e) => setEncoding(e.target.value as 'utf-8' | 'shift-jis')}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-900 dark:text-white">Shift-JIS</span>
@@ -232,9 +234,9 @@ export default function CsvExportModal({
                     <input
                       type="radio"
                       name="delimiter"
-                      value="comma"
-                      checked={delimiter === 'comma'}
-                      onChange={(e) => setDelimiter(e.target.value as 'comma' | 'tab')}
+                      value=","
+                      checked={delimiter === ','}
+                      onChange={(e) => setDelimiter(e.target.value as ',' | '\t')}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-900 dark:text-white">カンマ (,)</span>
@@ -243,9 +245,9 @@ export default function CsvExportModal({
                     <input
                       type="radio"
                       name="delimiter"
-                      value="tab"
-                      checked={delimiter === 'tab'}
-                      onChange={(e) => setDelimiter(e.target.value as 'comma' | 'tab')}
+                      value="\t"
+                      checked={delimiter === '\t'}
+                      onChange={(e) => setDelimiter(e.target.value as ',' | '\t')}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-900 dark:text-white">タブ (\t)</span>

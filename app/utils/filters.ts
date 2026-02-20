@@ -185,3 +185,39 @@ export function clearFilterCache(): void {
   // 明示的なクリアは不要だが、新しいWeakMapを作成することで即座にクリア
   filterCache.delete = () => true;
 }
+
+/**
+ * フィルター説明を配列で取得（複数行表示用）
+ */
+export function formatFilterDescriptionArray(filters: AdvancedFilters): string[] {
+  const descriptions: string[] = [];
+
+  // ステータスフィルター
+  if (filters.statuses.length > 0) {
+    const statusLabels = filters.statuses.map(s => {
+      switch (s) {
+        case 'pending': return '配送前';
+        case 'in_transit': return '配送中';
+        case 'completed': return '完了';
+      }
+    });
+    descriptions.push(`ステータス: ${statusLabels.join(', ')}`);
+  }
+
+  // 日付範囲フィルター
+  if (filters.dateRange) {
+    descriptions.push(`期間: ${filters.dateRange.startDate} 〜 ${filters.dateRange.endDate}`);
+  }
+
+  // 住所キーワード
+  if (filters.addressKeyword) {
+    descriptions.push(`住所: ${filters.addressKeyword}`);
+  }
+
+  // 名前キーワード
+  if (filters.nameKeyword) {
+    descriptions.push(`名前: ${filters.nameKeyword}`);
+  }
+
+  return descriptions;
+}

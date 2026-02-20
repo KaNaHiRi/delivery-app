@@ -1,41 +1,84 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
+import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: "配送管理システム",
-  description: "配送業務を効率化する管理システム",
+  title: {
+    default: "配送管理システム | Delivery Management System",
+    template: "%s | 配送管理システム",
+  },
+  description: "効率的な配送管理を実現するWebアプリケーション。Efficient delivery management web application.",
+  keywords: ["配送管理", "delivery", "logistics", "管理システム"],
+  authors: [{ name: "KAZU" }],
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    alternateLocale: "en_US",
+    title: "配送管理システム",
+    description: "効率的な配送管理を実現するWebアプリケーション",
+    siteName: "配送管理システム",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
-export default function RootLayout({
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="ja" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
-        {/* ダークモードの初期化スクリプト（Hydration Error防止） */}
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              (function() {
-                try {
-                  const theme = localStorage.getItem('theme');
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
-                } catch (e) {
-                  // LocalStorageが使えない環境では何もしない
+              try {
+                const theme = localStorage.getItem('theme');
+                if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  document.documentElement.classList.add('dark');
                 }
-              })();
+              } catch (e) {}
             `,
           }}
         />
       </head>
-      <body className="antialiased">
-        {children}
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
+      >
+        <NextIntlClientProvider messages={messages} locale={locale}>
+          <ServiceWorkerRegistration />
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );
