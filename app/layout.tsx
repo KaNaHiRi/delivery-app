@@ -4,6 +4,7 @@ import "./globals.css";
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
+import { SessionProvider } from 'next-auth/react';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,10 +76,12 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <NextIntlClientProvider messages={messages} locale={locale}>
-          <ServiceWorkerRegistration />
-          {children}
-        </NextIntlClientProvider>
+        <SessionProvider>
+          <NextIntlClientProvider messages={messages} locale={locale}>
+            <ServiceWorkerRegistration />
+            {children}
+          </NextIntlClientProvider>
+        </SessionProvider>
       </body>
     </html>
   );

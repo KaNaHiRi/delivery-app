@@ -3,6 +3,8 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    '^next-intl$': '<rootDir>/__mocks__/next-intl.js',
+    '^next-intl/(.*)$': '<rootDir>/__mocks__/next-intl.js',
   },
   testMatch: [
     '**/__tests__/**/*.test.[jt]s?(x)',
@@ -30,7 +32,6 @@ module.exports = {
   ],
   testPathIgnorePatterns: ['/node_modules/', '/.next/'],
   transformIgnorePatterns: [
-    '/node_modules/',
-    '^.+\\.module\\.(css|sass|scss)$',
+    '/node_modules/(?!(next-intl|use-intl)/)',
   ],
-}
+};

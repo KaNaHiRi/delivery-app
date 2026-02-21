@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Plus, 
   Search, 
@@ -11,7 +11,10 @@ import {
   BarChart3,
   Filter,
   X,
-  Bookmark
+  Bookmark,
+  RefreshCw,
+  Play,
+  Pause
 } from 'lucide-react';
 import type { 
   Delivery, 
@@ -33,6 +36,7 @@ import AdvancedFilterModal from './components/AdvancedFilterModal';
 import FilterPresetsModal from './components/FilterPresetsModal';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import LanguageSwitcher from './components/LanguageSwitcher';
+import UserMenu from './components/UserMenu';
 import { 
   applyAdvancedFilters, 
   applyQuickFilter, 
@@ -43,7 +47,96 @@ import {
 } from './utils/filters';
 import { usePerformanceMonitor } from './utils/performance';
 import { useTranslations } from 'next-intl';
+import { useInterval } from './hooks/useInterval';
 
+// ============================================================
+// AutoRefreshBar コンポーネント
+// ============================================================
+const REFRESH_INTERVALS = [
+  { label: '5秒', value: 5000 },
+  { label: '10秒', value: 10000 },
+  { label: '30秒', value: 30000 },
+  { label: '1分', value: 60000 },
+] as const;
+
+interface AutoRefreshBarProps {
+  onRefresh: () => void;
+}
+
+function AutoRefreshBar({ onRefresh }: AutoRefreshBarProps) {
+  const [enabled, setEnabled] = useState(false);
+  const [interval, setIntervalValue] = useState(30000);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
+  const handleRefresh = useCallback(() => {
+    onRefresh();
+    setLastRefreshed(new Date());
+  }, [onRefresh]);
+
+  useInterval(handleRefresh, enabled ? interval : null);
+
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-3 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm mb-6"
+      role="region"
+      aria-label="自動更新設定"
+    >
+      <button
+        onClick={handleRefresh}
+        className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+        aria-label="今すぐ更新"
+        title="今すぐ更新"
+      >
+        <RefreshCw size={14} className={enabled ? 'animate-spin' : ''} />
+        <span>更新</span>
+      </button>
+
+      <select
+        value={interval}
+        onChange={e => setIntervalValue(Number(e.target.value))}
+        className="px-2 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        aria-label="更新間隔"
+      >
+        {REFRESH_INTERVALS.map(opt => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}ごと
+          </option>
+        ))}
+      </select>
+
+      <button
+        onClick={() => setEnabled(prev => !prev)}
+        className={`flex items-center gap-1 px-3 py-1 rounded transition-colors ${
+          enabled
+            ? 'bg-blue-500 text-white hover:bg-blue-600'
+            : 'bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+        }`}
+        aria-pressed={enabled}
+        aria-label={enabled ? '自動更新を停止' : '自動更新を開始'}
+      >
+        {enabled ? <Pause size={14} /> : <Play size={14} />}
+        <span>{enabled ? '自動更新中' : '自動更新'}</span>
+      </button>
+
+      {lastRefreshed && (
+        <span className="text-gray-500 dark:text-gray-400 text-xs">
+          最終更新: {formatTime(lastRefreshed)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// メインコンポーネント
+// ============================================================
 export default function Home() {
   usePerformanceMonitor('Home');
 
@@ -80,6 +173,11 @@ export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [locale, setLocale] = useState('ja');
 
+  // ---- D&D state ----
+  const [orderedIds, setOrderedIds] = useState<string[]>([]);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const dragItemId = useRef<string | null>(null);
+
   const tCommon = useTranslations('common');
   const tDelivery = useTranslations('delivery');
   const tStatus = useTranslations('status');
@@ -92,6 +190,9 @@ export default function Home() {
     deliveryDate: '',
   });
 
+  // ============================================================
+  // useEffect
+  // ============================================================
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -147,6 +248,26 @@ export default function Home() {
     localStorage.setItem('filter_presets', JSON.stringify(filterPresets));
   }, [filterPresets, isMounted]);
 
+  useEffect(() => {
+    if (!isMounted || orderedIds.length === 0) return;
+    localStorage.setItem('delivery_app_order', JSON.stringify(orderedIds));
+  }, [orderedIds, isMounted]);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    const saved = localStorage.getItem('delivery_app_order');
+    const savedOrder: string[] = saved ? JSON.parse(saved) : [];
+    const currentIds = deliveries.map(d => d.id);
+    const merged = [
+      ...savedOrder.filter(id => currentIds.includes(id)),
+      ...currentIds.filter(id => !savedOrder.includes(id)),
+    ];
+    setOrderedIds(merged);
+  }, [deliveries, isMounted]);
+
+  // ============================================================
+  // useMemo
+  // ============================================================
   const statusLabels = useMemo(() => ({
     pending: tStatus('pending'),
     in_transit: tStatus('in_transit'),
@@ -198,14 +319,23 @@ export default function Home() {
     return result;
   }, [deliveries, searchTerm, statusFilter, sortKey, sortOrder, activeQuickFilter, advancedFilters]);
 
+  const orderedFilteredDeliveries = useMemo(() => {
+    if (orderedIds.length === 0) return filteredAndSortedDeliveries;
+    const map = new Map(filteredAndSortedDeliveries.map(d => [d.id, d]));
+    const ordered = orderedIds.flatMap(id => (map.has(id) ? [map.get(id)!] : []));
+    const orderedIdSet = new Set(orderedIds);
+    const extras = filteredAndSortedDeliveries.filter(d => !orderedIdSet.has(d.id));
+    return [...ordered, ...extras];
+  }, [filteredAndSortedDeliveries, orderedIds]);
+
   const paginatedDeliveries = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredAndSortedDeliveries.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredAndSortedDeliveries, currentPage, itemsPerPage]);
+    return orderedFilteredDeliveries.slice(startIndex, startIndex + itemsPerPage);
+  }, [orderedFilteredDeliveries, currentPage, itemsPerPage]);
 
   const totalPages = useMemo(() => {
-    return Math.ceil(filteredAndSortedDeliveries.length / itemsPerPage);
-  }, [filteredAndSortedDeliveries.length, itemsPerPage]);
+    return Math.ceil(orderedFilteredDeliveries.length / itemsPerPage);
+  }, [orderedFilteredDeliveries.length, itemsPerPage]);
 
   const isAllSelected = useMemo(() => {
     return (
@@ -214,6 +344,9 @@ export default function Home() {
     );
   }, [paginatedDeliveries, selectedIds]);
 
+  // ============================================================
+  // useCallback
+  // ============================================================
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (editingDelivery) {
@@ -261,11 +394,8 @@ export default function Home() {
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
       return newSet;
     });
   }, []);
@@ -340,6 +470,59 @@ export default function Home() {
     setIsModalOpen(true);
   }, []);
 
+  const handleAutoRefresh = useCallback(() => {
+    const saved = localStorage.getItem('delivery_app_data');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as Delivery[];
+        setDeliveries(parsed);
+      } catch {
+        // パース失敗は無視
+      }
+    }
+  }, []);
+
+  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
+    dragItemId.current = id;
+    e.dataTransfer.effectAllowed = 'move';
+    (e.currentTarget as HTMLElement).style.opacity = '0.5';
+  }, []);
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    (e.currentTarget as HTMLElement).style.opacity = '1';
+    dragItemId.current = null;
+    setDragOverId(null);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverId(id);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = dragItemId.current;
+    if (!sourceId || sourceId === targetId) {
+      setDragOverId(null);
+      return;
+    }
+    const newOrdered = [...orderedIds];
+    const sourceIndex = newOrdered.indexOf(sourceId);
+    const targetIndex = newOrdered.indexOf(targetId);
+    if (sourceIndex === -1 || targetIndex === -1) {
+      setDragOverId(null);
+      return;
+    }
+    const [removed] = newOrdered.splice(sourceIndex, 1);
+    newOrdered.splice(targetIndex, 0, removed);
+    setOrderedIds(newOrdered);
+    setDragOverId(null);
+  }, [orderedIds]);
+
+  // ============================================================
+  // 早期リターン
+  // ============================================================
   if (!isMounted) return null;
 
   if (isPrintPreview) {
@@ -358,6 +541,9 @@ export default function Home() {
     completed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   };
 
+  // ============================================================
+  // JSX
+  // ============================================================
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
       {/* ヘッダー */}
@@ -367,7 +553,7 @@ export default function Home() {
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold">{tCommon('appTitle')}</h1>
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                Day 22: i18n対応
+                Day 24: 認証機能
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -389,6 +575,8 @@ export default function Home() {
               </button>
               <LanguageSwitcher currentLocale={locale} />
               <ThemeToggle />
+              {/* ↓ Day 24 追加: UserMenu */}
+              <UserMenu />
             </div>
           </div>
         </div>
@@ -396,6 +584,9 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
         <DashboardStats deliveries={deliveries} />
+
+        {/* 自動更新バー */}
+        <AutoRefreshBar onRefresh={handleAutoRefresh} />
 
         {/* クイックフィルター */}
         <div className="mb-6" role="group" aria-label="クイックフィルター">
@@ -462,7 +653,6 @@ export default function Home() {
         {/* 検索・フィルター・アクションバー */}
         <div className="mb-6 space-y-4">
           <div className="flex flex-wrap gap-4">
-            {/* 検索 */}
             <div className="flex-1 min-w-[200px]">
               <label htmlFor="search-input" className="sr-only">
                 配送データを検索
@@ -488,7 +678,6 @@ export default function Home() {
               </span>
             </div>
 
-            {/* ステータスフィルター */}
             <div>
               <label htmlFor="status-filter" className="sr-only">
                 ステータスでフィルター
@@ -507,7 +696,6 @@ export default function Home() {
               </select>
             </div>
 
-            {/* 詳細フィルター */}
             <button
               onClick={() => setShowAdvancedFilter(true)}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
@@ -517,7 +705,6 @@ export default function Home() {
               {tCommon('filter')}
             </button>
 
-            {/* プリセット */}
             <button
               onClick={() => setShowFilterPresets(true)}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
@@ -527,7 +714,6 @@ export default function Home() {
               {tCommon('presets')}
             </button>
 
-            {/* 新規登録 */}
             <button
               onClick={handleOpenModal}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
@@ -538,7 +724,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* アクションボタン */}
           <div className="flex flex-wrap gap-2" role="group" aria-label="データ操作">
             <button
               onClick={() => setShowExportModal(true)}
@@ -599,19 +784,24 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 検索結果件数 */}
-        <div
-          className="mb-4 text-sm text-gray-600 dark:text-gray-400"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {tDelivery('totalCount', { count: filteredAndSortedDeliveries.length })}
-          {filteredAndSortedDeliveries.length !== deliveries.length && (
-            <span className="ml-2 text-blue-600 dark:text-blue-400">
-              （全{deliveries.length}件中）
-            </span>
-          )}
+        {/* 検索結果件数 + D&Dヒント */}
+        <div className="mb-4 flex items-center justify-between">
+          <div
+            className="text-sm text-gray-600 dark:text-gray-400"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {tDelivery('totalCount', { count: orderedFilteredDeliveries.length })}
+            {orderedFilteredDeliveries.length !== deliveries.length && (
+              <span className="ml-2 text-blue-600 dark:text-blue-400">
+                （全{deliveries.length}件中）
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            ↕ 行をドラッグして順番を変更できます
+          </span>
         </div>
 
         {/* データテーブル */}
@@ -620,6 +810,7 @@ export default function Home() {
             <table className="w-full" role="table" aria-label="配送データ一覧">
               <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                 <tr role="row">
+                  <th className="px-4 py-3 text-left w-8" role="columnheader" scope="col"></th>
                   <th className="px-4 py-3 text-left" role="columnheader" scope="col">
                     <input
                       type="checkbox"
@@ -666,21 +857,31 @@ export default function Home() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {paginatedDeliveries.length === 0 ? (
                   <tr role="row">
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500" role="cell">
+                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500" role="cell">
                       {tCommon('noData')}
                     </td>
                   </tr>
                 ) : (
                   paginatedDeliveries.map((delivery) => {
                     const isSelected = selectedIds.has(delivery.id);
+                    const isDragOver = dragOverId === delivery.id;
                     return (
                       <tr
                         key={delivery.id}
-                        className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                          isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                        }`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, delivery.id)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => handleDragOver(e, delivery.id)}
+                        onDrop={(e) => handleDrop(e, delivery.id)}
+                        className={`transition-colors cursor-grab active:cursor-grabbing ${
+                          isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                        } ${isDragOver ? 'border-t-2 border-blue-400 bg-blue-50 dark:bg-blue-900/30' : ''}`}
                         role="row"
+                        aria-label={`${delivery.name} - ドラッグで並び替え可能`}
                       >
+                        <td className="px-2 py-3 text-gray-400 dark:text-gray-500 select-none" role="cell">
+                          <span className="text-lg leading-none">⠿</span>
+                        </td>
                         <td className="px-4 py-3" role="cell">
                           <input
                             type="checkbox"
@@ -732,7 +933,6 @@ export default function Home() {
             </table>
           </div>
 
-          {/* ページネーション */}
           {totalPages > 1 && (
             <nav
               className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between"
@@ -867,7 +1067,7 @@ export default function Home() {
       <CsvExportModal
         isOpen={showExportModal}
         deliveries={deliveries}
-        filteredDeliveries={filteredAndSortedDeliveries}
+        filteredDeliveries={orderedFilteredDeliveries}
         selectedIds={selectedIds}
         onClose={() => setShowExportModal(false)}
       />
