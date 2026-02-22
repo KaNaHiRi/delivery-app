@@ -35,6 +35,10 @@ import { useTranslations } from 'next-intl';
 import { useInterval } from './hooks/useInterval';
 import { useRole } from './hooks/useRole';
 import { deliveryApi } from '@/lib/deliveryApi';
+import KeyboardShortcutHelp from './components/KeyboardShortcutHelp';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { Keyboard } from 'lucide-react';
+
 
 const REFRESH_INTERVALS = [
   { label: '5秒', value: 5000 },
@@ -145,8 +149,10 @@ export default function Home() {
   const [useVirtualScroll, setUseVirtualScroll] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   // ────────────────────────────────────────────────────
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
 
   const dragItemId = useRef<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const tCommon = useTranslations('common');
   const tDelivery = useTranslations('delivery');
@@ -369,6 +375,40 @@ export default function Home() {
   const handleClearFilters = useCallback(() => { setAdvancedFilters(createEmptyFilters()); setActiveQuickFilter(null); setSearchTerm(''); setStatusFilter('all'); setCurrentPage(1); }, []);
   const handleOpenModal = useCallback(() => { if (!permissions.canCreate) return; setEditingDelivery(null); setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' }); setIsModalOpen(true); }, [permissions.canCreate]);
   const handleAutoRefresh = useCallback(() => { fetchDeliveries(); }, [fetchDeliveries]);
+  // ── Day 28: キーボードショートカット ──────────────────────
+  // C#のKeyBinding相当。モーダルが開いている間は無効化
+  const anyModalOpen =
+    isModalOpen || showExportModal || showImportModal ||
+    showBackupRestoreModal || showNotificationSettings ||
+    isAnalyticsModalOpen || showAdvancedFilter ||
+    showFilterPresets || showShortcutHelp;
+
+  useKeyboardShortcuts(
+    {
+      onNew: handleOpenModal,
+      onFocus: () => searchInputRef.current?.focus(),
+      onVirtual: () => setUseVirtualScroll(v => !v),
+      onRefresh: fetchDeliveries,
+      onHelp: () => setShowShortcutHelp(true),
+      onEscape: () => {
+        if (showShortcutHelp) { setShowShortcutHelp(false); return; }
+        if (isModalOpen) { setIsModalOpen(false); return; }
+        if (showAdvancedFilter) { setShowAdvancedFilter(false); return; }
+        if (showFilterPresets) { setShowFilterPresets(false); return; }
+        if (showExportModal) { setShowExportModal(false); return; }
+        if (showImportModal) { setShowImportModal(false); return; }
+        if (showBackupRestoreModal) { setShowBackupRestoreModal(false); return; }
+        if (showNotificationSettings) { setShowNotificationSettings(false); return; }
+        if (isAnalyticsModalOpen) { setIsAnalyticsModalOpen(false); return; }
+        // フィルターが有効なら解除
+        if (hasActiveFilters(advancedFilters) || activeQuickFilter) {
+          handleClearFilters();
+        }
+      },
+    },
+    !anyModalOpen || true // Escapeは常に有効にするためtrueを渡す
+  );
+  // ────────────────────────────────────────────────────────────
 
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => { if (!permissions.canDragAndDrop) return; dragItemId.current = id; e.dataTransfer.effectAllowed = 'move'; (e.currentTarget as HTMLElement).style.opacity = '0.5'; }, [permissions.canDragAndDrop]);
   const handleDragEnd = useCallback((e: React.DragEvent) => { (e.currentTarget as HTMLElement).style.opacity = '1'; dragItemId.current = null; setDragOverId(null); }, []);
@@ -401,7 +441,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{tCommon('appTitle')}</h1>
               {roleBadge && <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${roleBadge.className}`}>{roleBadge.label}</span>}
-              <span className="text-sm text-gray-500 dark:text-gray-400">Day 27: 仮想スクロール</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Day 28: キーボードショートカット</span>
             </div>
             <div className="flex items-center gap-2">
               {permissions.canViewAnalytics && (
@@ -411,6 +451,15 @@ export default function Home() {
               )}
               <button onClick={() => setShowNotificationSettings(true)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="通知設定を開く"><Bell className="w-5 h-5" /></button>
               <LanguageSwitcher currentLocale={locale} />
+              
+              <button
+                onClick={() => setShowShortcutHelp(true)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="キーボードショートカット一覧を開く"
+                title="キーボードショートカット (?)">
+                <Keyboard className="w-5 h-5" aria-hidden="true" />
+              </button>
+              
               <ThemeToggle />
               <UserMenu />
             </div>
@@ -464,7 +513,7 @@ export default function Home() {
               <label htmlFor="search-input" className="sr-only">配送データを検索</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" aria-hidden="true" />
-                <input id="search-input" type="text" placeholder={`${tCommon('search')}...`} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" aria-label="配送データを検索" aria-describedby="search-help" />
+                <input id="search-input" ref={searchInputRef} type="text" placeholder={`${tCommon('search')}...`} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" aria-label="配送データを検索" aria-describedby="search-help" />
               </div>
               <span id="search-help" className="sr-only">名前、住所、またはIDを入力して検索</span>
             </div>
@@ -693,6 +742,11 @@ export default function Home() {
       {permissions.canViewAnalytics && <AnalyticsModal isOpen={isAnalyticsModalOpen} deliveries={deliveries} onClose={() => setIsAnalyticsModalOpen(false)} />}
       <AdvancedFilterModal isOpen={showAdvancedFilter} filters={advancedFilters} onApply={filters => { setAdvancedFilters(filters); setActiveQuickFilter(null); setShowAdvancedFilter(false); setCurrentPage(1); }} onClose={() => setShowAdvancedFilter(false)} />
       <FilterPresetsModal isOpen={showFilterPresets} presets={filterPresets} currentFilters={advancedFilters} onSavePreset={name => { setFilterPresets(prev => [...prev, { id: `preset_${Date.now()}`, name, filters: advancedFilters, createdAt: new Date().toISOString() }]); }} onLoadPreset={preset => { setAdvancedFilters(preset.filters); setActiveQuickFilter(null); setShowFilterPresets(false); setCurrentPage(1); }} onDeletePreset={presetId => setFilterPresets(prev => prev.filter(p => p.id !== presetId))} onClose={() => setShowFilterPresets(false)} />
+      <KeyboardShortcutHelp
+        isOpen={showShortcutHelp}
+        isAdmin={permissions.canCreate}
+        onClose={() => setShowShortcutHelp(false)}
+      />      
       <PerformanceMonitor />
     </div>
   );
