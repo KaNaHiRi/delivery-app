@@ -23,6 +23,8 @@ import FilterPresetsModal from './components/FilterPresetsModal';
 import PerformanceMonitor from './components/PerformanceMonitor';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import UserMenu from './components/UserMenu';
+import { VirtualTable } from '@/app/components/VirtualTable';
+import { generateTestData } from '@/app/utils/generateTestData';
 import { 
   applyAdvancedFilters, applyQuickFilter, createEmptyFilters,
   hasActiveFilters, formatFilterDescription, clearFilterCache
@@ -94,7 +96,6 @@ function RoleBanner({ role }: { role: string | undefined }) {
   return null;
 }
 
-// ローディングスピナー
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center py-12" role="status" aria-label="読み込み中">
@@ -111,8 +112,8 @@ export default function Home() {
   const permissions = useMemo(() => getPermissions(role), [role]);
 
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
-  const [isLoading, setIsLoading] = useState(true);         // ← 追加
-  const [apiError, setApiError] = useState<string | null>(null); // ← 追加
+  const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortKey, setSortKey] = useState<keyof Delivery>('deliveryDate');
@@ -140,6 +141,11 @@ export default function Home() {
   const [locale, setLocale] = useState('ja');
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  // ── Day 27: 仮想スクロール ──────────────────────────
+  const [useVirtualScroll, setUseVirtualScroll] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  // ────────────────────────────────────────────────────
+
   const dragItemId = useRef<string | null>(null);
 
   const tCommon = useTranslations('common');
@@ -149,7 +155,6 @@ export default function Home() {
 
   const [formData, setFormData] = useState({ name: '', address: '', status: 'pending' as Delivery['status'], deliveryDate: '' });
 
-  // APIからデータ取得（C#のHttpClient.GetAsync()に相当）
   const fetchDeliveries = useCallback(async () => {
     try {
       setApiError(null);
@@ -169,13 +174,11 @@ export default function Home() {
     if (cookieLocale) setLocale(cookieLocale);
   }, []);
 
-  // マウント後にAPIからデータ取得
   useEffect(() => {
     if (!isMounted) return;
     fetchDeliveries();
   }, [isMounted, fetchDeliveries]);
 
-  // LocalStorageは設定系のみ継続使用
   useEffect(() => {
     if (!isMounted) return;
     const savedNotificationSettings = localStorage.getItem('notification_settings');
@@ -233,7 +236,33 @@ export default function Home() {
   const totalPages = useMemo(() => Math.ceil(orderedFilteredDeliveries.length / itemsPerPage), [orderedFilteredDeliveries.length, itemsPerPage]);
   const isAllSelected = useMemo(() => paginatedDeliveries.length > 0 && paginatedDeliveries.every(d => selectedIds.has(d.id)), [paginatedDeliveries, selectedIds]);
 
-  // APIを使ったCRUD操作
+  // ── Day 27: テストデータ生成（adminのみ・パフォーマンステスト用）──
+  // C#: List<Delivery> を一括生成して HttpClient.PostAsync() で送信するのと同等
+  const handleGenerateTestData = useCallback(async () => {
+    if (!permissions.canCreate) return;
+    const count = 200;
+    setIsGenerating(true);
+    try {
+      const testData = generateTestData(count);
+      for (const d of testData) {
+        // eslint-disable-next-line no-await-in-loop
+        await deliveryApi.create({
+          name: d.name,
+          address: d.address,
+          status: d.status,
+          deliveryDate: d.deliveryDate,
+        });
+      }
+      await fetchDeliveries();
+      alert(`${count}件のテストデータを追加しました`);
+    } catch {
+      alert('テストデータの生成に失敗しました');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [permissions.canCreate, fetchDeliveries]);
+  // ────────────────────────────────────────────────────────────────
+
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -339,8 +368,6 @@ export default function Home() {
 
   const handleClearFilters = useCallback(() => { setAdvancedFilters(createEmptyFilters()); setActiveQuickFilter(null); setSearchTerm(''); setStatusFilter('all'); setCurrentPage(1); }, []);
   const handleOpenModal = useCallback(() => { if (!permissions.canCreate) return; setEditingDelivery(null); setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' }); setIsModalOpen(true); }, [permissions.canCreate]);
-
-  // 自動更新はAPIから再取得
   const handleAutoRefresh = useCallback(() => { fetchDeliveries(); }, [fetchDeliveries]);
 
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => { if (!permissions.canDragAndDrop) return; dragItemId.current = id; e.dataTransfer.effectAllowed = 'move'; (e.currentTarget as HTMLElement).style.opacity = '0.5'; }, [permissions.canDragAndDrop]);
@@ -374,7 +401,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{tCommon('appTitle')}</h1>
               {roleBadge && <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${roleBadge.className}`}>{roleBadge.label}</span>}
-              <span className="text-sm text-gray-500 dark:text-gray-400">Day 26: API Routes + データ永続化</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Day 27: 仮想スクロール</span>
             </div>
             <div className="flex items-center gap-2">
               {permissions.canViewAnalytics && (
@@ -396,7 +423,6 @@ export default function Home() {
         <RoleBanner role={role} />
         <AutoRefreshBar onRefresh={handleAutoRefresh} />
 
-        {/* APIエラー表示 */}
         {apiError && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg" role="alert">
             <div className="flex items-center justify-between">
@@ -468,6 +494,32 @@ export default function Home() {
             {permissions.canExportCsv && <button onClick={() => setShowExportModal(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2" aria-label="エクスポート"><Download className="w-4 h-4" />{tCommon('export')}</button>}
             {permissions.canImportCsv && <button onClick={() => setShowImportModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2" aria-label="インポート"><Upload className="w-4 h-4" />{tCommon('import')}</button>}
             {permissions.canBackupRestore && <button onClick={() => setShowBackupRestoreModal(true)} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2" aria-label="バックアップ/リストア"><Save className="w-4 h-4" />{tCommon('backupRestore')}</button>}
+
+            {/* ── Day 27: 仮想スクロール切替 & テストデータ生成 ── */}
+            <button
+              onClick={() => setUseVirtualScroll(v => !v)}
+              className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                useVirtualScroll
+                  ? 'bg-purple-600 text-white border-purple-600'
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+              }`}
+              title={useVirtualScroll ? '通常テーブルに切替' : '仮想スクロールに切替（大量データ向け）'}
+              aria-pressed={useVirtualScroll}
+            >
+              {useVirtualScroll ? '📜 仮想OFF' : '⚡ 仮想ON'}
+            </button>
+            {permissions.canCreate && (
+              <button
+                onClick={handleGenerateTestData}
+                disabled={isGenerating}
+                className="px-3 py-2 text-sm rounded-lg border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                title="200件のテストデータを追加（パフォーマンス確認用）"
+              >
+                {isGenerating ? '⏳ 生成中...' : '🗂️ テストデータ+200'}
+              </button>
+            )}
+            {/* ─────────────────────────────────────────────────── */}
+
             {selectedIds.size > 0 && (
               <>
                 {permissions.canBulkPrint && <button onClick={handleBulkPrint} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" aria-label={`${selectedIds.size}件印刷`}>{tCommon('print')} ({selectedIds.size})</button>}
@@ -488,85 +540,106 @@ export default function Home() {
             {tDelivery('totalCount', { count: orderedFilteredDeliveries.length })}
             {orderedFilteredDeliveries.length !== deliveries.length && <span className="ml-2 text-blue-600 dark:text-blue-400">（全{deliveries.length}件中）</span>}
           </div>
-          {permissions.canDragAndDrop && <span className="text-xs text-gray-400 dark:text-gray-500">↕ 行をドラッグして順番を変更できます</span>}
+          {!useVirtualScroll && permissions.canDragAndDrop && <span className="text-xs text-gray-400 dark:text-gray-500">↕ 行をドラッグして順番を変更できます</span>}
+          {useVirtualScroll && <span className="text-xs text-purple-500 dark:text-purple-400">⚡ 仮想スクロールモード — ページネーションなしで全件表示</span>}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full" role="table" aria-label="配送データ一覧">
-              <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                <tr role="row">
-                  {permissions.canDragAndDrop && <th className="px-4 py-3 text-left w-8" role="columnheader" scope="col"></th>}
-                  {permissions.canSelectAll && (
-                    <th className="px-4 py-3 text-left" role="columnheader" scope="col">
-                      <input type="checkbox" checked={isAllSelected} onChange={handleToggleSelectAll} className="w-4 h-4 cursor-pointer" aria-label="すべて選択" />
-                    </th>
-                  )}
-                  {[{ key: 'id' as keyof Delivery, label: tDelivery('id') }, { key: 'name' as keyof Delivery, label: tDelivery('name') }, { key: 'address' as keyof Delivery, label: tDelivery('address') }, { key: 'status' as keyof Delivery, label: tDelivery('status') }, { key: 'deliveryDate' as keyof Delivery, label: tDelivery('deliveryDate') }].map(({ key, label }) => (
-                    <th key={key} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort(key)} role="columnheader" scope="col" aria-sort={sortKey === key ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort(key); } }}>
-                      {label} {sortKey === key && (sortOrder === 'asc' ? '↑' : '↓')}
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" role="columnheader" scope="col">{tCommon('action')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {isLoading ? (
-                  <tr role="row">
-                    <td colSpan={6 + (permissions.canDragAndDrop ? 1 : 0) + (permissions.canSelectAll ? 1 : 0)} role="cell">
-                      <LoadingSpinner />
-                    </td>
-                  </tr>
-                ) : paginatedDeliveries.length === 0 ? (
-                  <tr role="row"><td colSpan={6 + (permissions.canDragAndDrop ? 1 : 0) + (permissions.canSelectAll ? 1 : 0)} className="px-4 py-8 text-center text-gray-500" role="cell">{tCommon('noData')}</td></tr>
-                ) : (
-                  paginatedDeliveries.map(delivery => {
-                    const isSelected = selectedIds.has(delivery.id);
-                    const isDragOver = dragOverId === delivery.id;
-                    return (
-                      <tr key={delivery.id} draggable={permissions.canDragAndDrop} onDragStart={e => handleDragStart(e, delivery.id)} onDragEnd={handleDragEnd} onDragOver={e => handleDragOver(e, delivery.id)} onDrop={e => handleDrop(e, delivery.id)} className={`transition-colors ${permissions.canDragAndDrop ? 'cursor-grab active:cursor-grabbing' : ''} ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700'} ${isDragOver ? 'border-t-2 border-blue-400 bg-blue-50 dark:bg-blue-900/30' : ''}`} role="row" aria-label={permissions.canDragAndDrop ? `${delivery.name} - ドラッグで並び替え可能` : delivery.name}>
-                        {permissions.canDragAndDrop && <td className="px-2 py-3 text-gray-400 dark:text-gray-500 select-none" role="cell"><span className="text-lg leading-none">⠿</span></td>}
-                        {permissions.canSelectAll && <td className="px-4 py-3" role="cell"><input type="checkbox" checked={isSelected} onChange={() => handleToggleSelect(delivery.id)} className="w-4 h-4 cursor-pointer" aria-label={`${delivery.name}を選択`} /></td>}
-                        <td className="px-4 py-3 text-sm" role="cell">{delivery.id}</td>
-                        <td className="px-4 py-3 text-sm font-medium" role="cell">{delivery.name}</td>
-                        <td className="px-4 py-3 text-sm" role="cell">{delivery.address}</td>
-                        <td className="px-4 py-3 text-sm" role="cell">
-                          {permissions.canChangeStatus ? (
-                            <select value={delivery.status} onChange={e => handleStatusChange(delivery.id, e.target.value as Delivery['status'])} className={`px-2 py-1 rounded-full text-xs font-medium border-0 cursor-pointer appearance-none ${statusColors[delivery.status]}`} aria-label={`${delivery.name}のステータス`}>
-                              <option value="pending">{tStatus('pending')}</option>
-                              <option value="in_transit">{tStatus('in_transit')}</option>
-                              <option value="completed">{tStatus('completed')}</option>
-                            </select>
-                          ) : (
-                            <span className={`px-2 py-1 rounded-full text-xs ${statusColors[delivery.status]}`}>{statusLabels[delivery.status]}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm" role="cell">{delivery.deliveryDate}</td>
-                        <td className="px-4 py-3 text-sm" role="cell">
-                          <div className="flex gap-2">
-                            <button onClick={() => handlePrint(delivery.id)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800" aria-label={`${delivery.name}を印刷`}>{tCommon('print')}</button>
-                            {permissions.canEdit && <button onClick={() => handleEdit(delivery)} className="text-blue-600 dark:text-blue-400 hover:text-blue-800" aria-label={`${delivery.name}を編集`}>{tCommon('edit')}</button>}
-                            {permissions.canDelete && <button onClick={() => handleDelete(delivery.id)} className="text-red-600 dark:text-red-400 hover:text-red-800" aria-label={`${delivery.name}を削除`}>{tCommon('delete')}</button>}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+        {/* ── Day 27: 仮想スクロール / 通常テーブル 切替 ── */}
+        {useVirtualScroll ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            {isLoading ? (
+              <LoadingSpinner />
+            ) : (
+              <VirtualTable
+                deliveries={orderedFilteredDeliveries}
+                isAdmin={permissions.canEdit}
+                onStatusChange={handleStatusChange}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onPrint={(delivery) => handlePrint(delivery.id)}
+              />
+            )}
           </div>
+        ) : (
+          // ── 通常テーブル（既存コード） ──────────────────────
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full" role="table" aria-label="配送データ一覧">
+                <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                  <tr role="row">
+                    {permissions.canDragAndDrop && <th className="px-4 py-3 text-left w-8" role="columnheader" scope="col"></th>}
+                    {permissions.canSelectAll && (
+                      <th className="px-4 py-3 text-left" role="columnheader" scope="col">
+                        <input type="checkbox" checked={isAllSelected} onChange={handleToggleSelectAll} className="w-4 h-4 cursor-pointer" aria-label="すべて選択" />
+                      </th>
+                    )}
+                    {[{ key: 'id' as keyof Delivery, label: tDelivery('id') }, { key: 'name' as keyof Delivery, label: tDelivery('name') }, { key: 'address' as keyof Delivery, label: tDelivery('address') }, { key: 'status' as keyof Delivery, label: tDelivery('status') }, { key: 'deliveryDate' as keyof Delivery, label: tDelivery('deliveryDate') }].map(({ key, label }) => (
+                      <th key={key} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" onClick={() => handleSort(key)} role="columnheader" scope="col" aria-sort={sortKey === key ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort(key); } }}>
+                        {label} {sortKey === key && (sortOrder === 'asc' ? '↑' : '↓')}
+                      </th>
+                    ))}
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" role="columnheader" scope="col">{tCommon('action')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {isLoading ? (
+                    <tr role="row">
+                      <td colSpan={6 + (permissions.canDragAndDrop ? 1 : 0) + (permissions.canSelectAll ? 1 : 0)} role="cell">
+                        <LoadingSpinner />
+                      </td>
+                    </tr>
+                  ) : paginatedDeliveries.length === 0 ? (
+                    <tr role="row"><td colSpan={6 + (permissions.canDragAndDrop ? 1 : 0) + (permissions.canSelectAll ? 1 : 0)} className="px-4 py-8 text-center text-gray-500" role="cell">{tCommon('noData')}</td></tr>
+                  ) : (
+                    paginatedDeliveries.map(delivery => {
+                      const isSelected = selectedIds.has(delivery.id);
+                      const isDragOver = dragOverId === delivery.id;
+                      return (
+                        <tr key={delivery.id} draggable={permissions.canDragAndDrop} onDragStart={e => handleDragStart(e, delivery.id)} onDragEnd={handleDragEnd} onDragOver={e => handleDragOver(e, delivery.id)} onDrop={e => handleDrop(e, delivery.id)} className={`transition-colors ${permissions.canDragAndDrop ? 'cursor-grab active:cursor-grabbing' : ''} ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700'} ${isDragOver ? 'border-t-2 border-blue-400 bg-blue-50 dark:bg-blue-900/30' : ''}`} role="row" aria-label={permissions.canDragAndDrop ? `${delivery.name} - ドラッグで並び替え可能` : delivery.name}>
+                          {permissions.canDragAndDrop && <td className="px-2 py-3 text-gray-400 dark:text-gray-500 select-none" role="cell"><span className="text-lg leading-none">⠿</span></td>}
+                          {permissions.canSelectAll && <td className="px-4 py-3" role="cell"><input type="checkbox" checked={isSelected} onChange={() => handleToggleSelect(delivery.id)} className="w-4 h-4 cursor-pointer" aria-label={`${delivery.name}を選択`} /></td>}
+                          <td className="px-4 py-3 text-sm" role="cell">{delivery.id}</td>
+                          <td className="px-4 py-3 text-sm font-medium" role="cell">{delivery.name}</td>
+                          <td className="px-4 py-3 text-sm" role="cell">{delivery.address}</td>
+                          <td className="px-4 py-3 text-sm" role="cell">
+                            {permissions.canChangeStatus ? (
+                              <select value={delivery.status} onChange={e => handleStatusChange(delivery.id, e.target.value as Delivery['status'])} className={`px-2 py-1 rounded-full text-xs font-medium border-0 cursor-pointer appearance-none ${statusColors[delivery.status]}`} aria-label={`${delivery.name}のステータス`}>
+                                <option value="pending">{tStatus('pending')}</option>
+                                <option value="in_transit">{tStatus('in_transit')}</option>
+                                <option value="completed">{tStatus('completed')}</option>
+                              </select>
+                            ) : (
+                              <span className={`px-2 py-1 rounded-full text-xs ${statusColors[delivery.status]}`}>{statusLabels[delivery.status]}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm" role="cell">{delivery.deliveryDate}</td>
+                          <td className="px-4 py-3 text-sm" role="cell">
+                            <div className="flex gap-2">
+                              <button onClick={() => handlePrint(delivery.id)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800" aria-label={`${delivery.name}を印刷`}>{tCommon('print')}</button>
+                              {permissions.canEdit && <button onClick={() => handleEdit(delivery)} className="text-blue-600 dark:text-blue-400 hover:text-blue-800" aria-label={`${delivery.name}を編集`}>{tCommon('edit')}</button>}
+                              {permissions.canDelete && <button onClick={() => handleDelete(delivery.id)} className="text-red-600 dark:text-red-400 hover:text-red-800" aria-label={`${delivery.name}を削除`}>{tCommon('delete')}</button>}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-          {totalPages > 1 && (
-            <nav className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between" aria-label="ページネーション">
-              <div className="text-sm text-gray-700 dark:text-gray-300" role="status" aria-live="polite">ページ {currentPage} / {totalPages}</div>
-              <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="前のページ">前へ</button>
-                <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="次のページ">次へ</button>
-              </div>
-            </nav>
-          )}
-        </div>
+            {totalPages > 1 && (
+              <nav className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between" aria-label="ページネーション">
+                <div className="text-sm text-gray-700 dark:text-gray-300" role="status" aria-live="polite">ページ {currentPage} / {totalPages}</div>
+                <div className="flex gap-2">
+                  <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="前のページ">前へ</button>
+                  <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" aria-label="次のページ">次へ</button>
+                </div>
+              </nav>
+            )}
+          </div>
+        )}
+        {/* ─────────────────────────────────────────────────────── */}
       </main>
 
       {isModalOpen && permissions.canCreate && (
@@ -591,7 +664,6 @@ export default function Home() {
       {showImportModal && permissions.canImportCsv && <CsvImportModal onClose={() => setShowImportModal(false)} onImportComplete={async (data, mode) => {
         try {
           if (mode === 'overwrite') {
-            // 既存データを削除してから新規登録
             await Promise.all(deliveries.map(d => deliveryApi.delete(d.id)));
             const created = await Promise.all(data.map(d => deliveryApi.create({ name: d.name, address: d.address, status: d.status, deliveryDate: d.deliveryDate })));
             setDeliveries(created);
