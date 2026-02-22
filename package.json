@@ -9,10 +9,11 @@
     "lint": "next lint",
     "test": "jest --watch",
     "test:ci": "jest --ci",
-    "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "test:coverage": "jest --coverage --coverageReporters=text --coverageReporters=lcov"
+
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.18",

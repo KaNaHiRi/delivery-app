@@ -25,7 +25,6 @@ interface Props {
 }
 
 export default function KeyboardShortcutHelp({ isOpen, isAdmin, onClose }: Props) {
-  // Escapeで閉じる（page.tsx側のEscapeより先に処理）
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,7 +33,7 @@ export default function KeyboardShortcutHelp({ isOpen, isAdmin, onClose }: Props
         onClose();
       }
     };
-    window.addEventListener('keydown', handleKeyDown, true); // capture phase
+    window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, onClose]);
 
@@ -63,7 +62,7 @@ export default function KeyboardShortcutHelp({ isOpen, isAdmin, onClose }: Props
             className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             aria-label="ヘルプを閉じる"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
