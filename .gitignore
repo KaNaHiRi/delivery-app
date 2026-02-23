@@ -42,3 +42,7 @@ next-env.d.ts
 
 # データファイル（本番では別途管理）
 data/deliveries.json
+
+# Playwright
+/playwright-report/
+/test-results/
