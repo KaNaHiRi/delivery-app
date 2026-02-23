@@ -12,8 +12,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
-    "test:coverage": "jest --coverage --coverageReporters=text --coverageReporters=lcov"
-
+    "test:coverage": "jest --coverage --coverageReporters=text --coverageReporters=lcov",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.18",
@@ -49,6 +50,18 @@
     "jest-environment-jsdom": "^30.2.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
-    "typescript": "^5"
+    "typescript": "^5",
+    "storybook": "^10.2.10",
+    "@storybook/nextjs-vite": "^10.2.10",
+    "@chromatic-com/storybook": "^5.0.1",
+    "@storybook/addon-vitest": "^10.2.10",
+    "@storybook/addon-a11y": "^10.2.10",
+    "@storybook/addon-docs": "^10.2.10",
+    "vite": "^7.3.1",
+    "eslint-plugin-storybook": "^10.2.10",
+    "vitest": "^4.0.18",
+    "playwright": "^1.58.2",
+    "@vitest/browser-playwright": "^4.0.18",
+    "@vitest/coverage-v8": "^4.0.18"
   }
 }

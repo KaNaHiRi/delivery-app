@@ -1,0 +1,23 @@
+[11:43:09.209] [INFO] storybook v10.2.10
+[11:43:11.493] [DEBUG] Getting package.json info for C:/Users/CX-19010/Desktop/my-delivery-app/package.json...
+[11:43:15.772] [DEBUG] Serving static files from [36mnode_modules/@chromatic-com/storybook/assets[39m at [36m/addon-visual-tests-assets[39m
+[11:43:15.773] [DEBUG] Serving static files from [36mpublic[39m at [36m/[39m
+[11:43:15.774] [INFO] Starting...
+[11:43:15.823] [WARN] No story files found for the specified pattern: [34mapp\**\*.mdx[39m
+[11:43:18.536] [DEBUG] Starting preview..
+[11:43:19.123] [DEBUG] Using tsconfig paths for react-docgen
+[11:43:21.489] [ERROR] Failed to build the preview
+[11:43:21.499] [ERROR] [38;2;241;97;97mReferenceError: __dirname is not defined[39m
+    at Object.viteFinal (file:///C:/Users/CX-19010/Desktop/my-delivery-app/.storybook/main.ts:19:33)
+    at file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/storybook/dist/_node-chunks/chunk-URMZXQZT.js:10114:36
+    at async createViteServer (file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/@storybook/builder-vite/dist/index.js:1898:21)
+    at async Module.start (file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/@storybook/builder-vite/dist/index.js:1923:17)
+    at async storybookDevServer (file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/storybook/dist/core-server/index.js:7241:83)
+    at async buildOrThrow (file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/storybook/dist/core-server/index.js:4504:12)
+    at async buildDevStandalone (file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/storybook/dist/core-server/index.js:7611:66)
+    at async withTelemetry (file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/storybook/dist/_node-chunks/chunk-S3MWHNYJ.js:218:12)
+    at async dev (file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/storybook/dist/bin/core.js:2734:3)
+    at async _Command.<anonymous> (file:///C:/Users/CX-19010/Desktop/my-delivery-app/node_modules/storybook/dist/bin/core.js:2803:92)
+[11:43:21.505] [WARN] Broken build, fix the error above.
+You may need to refresh the browser.
+[11:45:32.097] [PROMPT] Would you like to send anonymous crash reports to improve Storybook and fix bugs faster? {"choice":false}
