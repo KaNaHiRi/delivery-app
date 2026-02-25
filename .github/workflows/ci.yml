@@ -28,7 +28,7 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
-        run: npx next lint
+        run: npx next lint --dir app --dir lib
 
   # ── Job 2: Unit Tests ─────────────────────────────────
   unit-test:
