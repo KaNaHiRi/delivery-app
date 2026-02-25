@@ -6,11 +6,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: 'html',
+  reporter: process.env.CI ? 'github' : 'html',
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // CI環境ではタイムアウトを長めに
+    actionTimeout: process.env.CI ? 15000 : 10000,
   },
   projects: [
     {
@@ -23,5 +25,8 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
+    // CI環境ではstdoutを出力しない
+    stdout: 'ignore',
+    stderr: 'pipe',
   },
 });
