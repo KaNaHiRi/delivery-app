@@ -1,45 +1,42 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { deliveryStore } from '@/lib/deliveryStore';
-import type { Delivery } from '@/app/types/delivery';
 
-// C# の [Authorize] + [HttpGet] に相当
 export async function GET() {
-  // 第3のRBACガード: サーバーサイドでセッション検証
   const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const deliveries = deliveryStore.getAll();
-  return NextResponse.json(deliveries);
+  try {
+    const deliveries = await deliveryStore.getAll();
+    return NextResponse.json(deliveries);
+  } catch (error) {
+    console.error('GET /api/deliveries error:', error);
+    return NextResponse.json({ error: 'データの取得に失敗しました' }, { status: 500 });
+  }
 }
 
-// C# の [Authorize(Roles="admin")] + [HttpPost] に相当
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if ((session.user as any)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // ロールチェック: adminのみ作成可能
-  const role = (session.user as any).role;
-  if (role !== 'admin') {
-    return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
+  try {
+    const body = await request.json();
+    const { name, address, status, deliveryDate } = body;
+    if (!name || !address || !deliveryDate) {
+      return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 });
+    }
+    const delivery = await deliveryStore.create({
+      name,
+      address,
+      status: status ?? 'pending',
+      deliveryDate,
+    });
+    return NextResponse.json(delivery, { status: 201 });
+  } catch (error) {
+    console.error('POST /api/deliveries error:', error);
+    return NextResponse.json({ error: '作成に失敗しました' }, { status: 500 });
   }
-
-  const body = await request.json() as Omit<Delivery, 'id'>;
-  const newDelivery: Delivery = {
-    id: `DEL${Date.now()}`,
-    name: body.name,
-    address: body.address,
-    status: body.status,
-    deliveryDate: body.deliveryDate,
-  };
-
-  const deliveries = deliveryStore.getAll();
-  deliveries.push(newDelivery);
-  deliveryStore.save(deliveries);
-
-  return NextResponse.json(newDelivery, { status: 201 });
 }

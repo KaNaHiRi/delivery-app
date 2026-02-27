@@ -1,66 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { deliveryStore } from '@/lib/deliveryStore';
-import type { Delivery } from '@/app/types/delivery';
 
-// C# の [HttpPut("{id}")] に相当
 export async function PUT(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const role = (session.user as any).role;
   const { id } = await params;
-  const body = await request.json() as Partial<Delivery>;
+  const body = await request.json();
+  const userRole = (session.user as any)?.role;
 
-  const deliveries = deliveryStore.getAll();
-  const index = deliveries.findIndex(d => d.id === id);
-
-  if (index === -1) {
-    return NextResponse.json({ error: '配送データが見つかりません' }, { status: 404 });
+  const isStatusOnly = Object.keys(body).length === 1 && 'status' in body;
+  if (!isStatusOnly && userRole !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // ステータス変更はadmin/user両方可、それ以外の編集はadminのみ
-  const isStatusOnlyChange = Object.keys(body).length === 1 && 'status' in body;
-  if (!isStatusOnlyChange && role !== 'admin') {
-    return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
+  try {
+    const updated = await deliveryStore.update(id, body);
+    if (!updated) return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 });
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('PUT /api/deliveries/[id] error:', error);
+    return NextResponse.json({ error: '更新に失敗しました' }, { status: 500 });
   }
-
-  deliveries[index] = { ...deliveries[index], ...body };
-  deliveryStore.save(deliveries);
-
-  return NextResponse.json(deliveries[index]);
 }
 
-// C# の [HttpDelete("{id}")] に相当
 export async function DELETE(
-  _request: NextRequest,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-  }
-
-  const role = (session.user as any).role;
-  if (role !== 'admin') {
-    return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if ((session.user as any)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { id } = await params;
-  const deliveries = deliveryStore.getAll();
-  const index = deliveries.findIndex(d => d.id === id);
-
-  if (index === -1) {
-    return NextResponse.json({ error: '配送データが見つかりません' }, { status: 404 });
+  try {
+    const success = await deliveryStore.delete(id);
+    if (!success) return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('DELETE /api/deliveries/[id] error:', error);
+    return NextResponse.json({ error: '削除に失敗しました' }, { status: 500 });
   }
-
-  deliveries.splice(index, 1);
-  deliveryStore.save(deliveries);
-
-  return NextResponse.json({ message: '削除しました' });
 }

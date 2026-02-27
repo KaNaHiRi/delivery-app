@@ -20,13 +20,18 @@
     "e2e:headed": "playwright test --headed",
     "e2e:report": "playwright show-report"
   },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+  },
   "dependencies": {
+    "@prisma/client": "^6.19.2",
     "@tanstack/react-virtual": "^3.13.18",
     "@types/react-window": "^1.8.8",
     "lucide-react": "^0.563.0",
     "next": "16.1.5",
     "next-auth": "^5.0.0-beta.30",
     "next-intl": "^4.8.3",
+    "prisma": "^6.19.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-window": "^2.2.7",
@@ -64,6 +69,7 @@
     "postcss": "^8.5.6",
     "storybook": "^10.2.10",
     "tailwindcss": "^3.4.19",
+    "ts-node": "^10.9.2",
     "typescript": "^5",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"

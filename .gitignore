@@ -46,3 +46,4 @@ data/deliveries.json
 # Playwright
 /playwright-report/
 /test-results/
+/lib/generated/prisma

@@ -30,7 +30,7 @@ module.exports = {
     'app/**/*.{js,jsx,ts,tsx}',
     '!app/**/*.d.ts',
   ],
-  testPathIgnorePatterns: ['/node_modules/', '/.next/'],
+  testPathIgnorePatterns: ['/node_modules/', '/.next/','<rootDir>/e2e/',],
   transformIgnorePatterns: [
     '/node_modules/(?!(next-intl|use-intl)/)',
   ],
