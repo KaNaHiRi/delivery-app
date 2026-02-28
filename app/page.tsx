@@ -38,6 +38,8 @@ import { deliveryApi } from '@/lib/deliveryApi';
 import KeyboardShortcutHelp from './components/KeyboardShortcutHelp';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { Keyboard } from 'lucide-react';
+import { createDeliverySchema } from './utils/validation';
+import { useFormValidation } from './hooks/useFormValidation';
 
 
 const REFRESH_INTERVALS = [
@@ -160,6 +162,8 @@ export default function Home() {
   const tFilter = useTranslations('filter');
 
   const [formData, setFormData] = useState({ name: '', address: '', status: 'pending' as Delivery['status'], deliveryDate: '' });
+  const { errors: formErrors, validate: validateForm, clearError, clearAllErrors } = useFormValidation(createDeliverySchema);
+
 
   const fetchDeliveries = useCallback(async () => {
     try {
@@ -270,25 +274,30 @@ export default function Home() {
   // ────────────────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingDelivery) {
-        if (!permissions.canEdit) return;
-        const updated = await deliveryApi.update(editingDelivery.id, formData);
-        setDeliveries(prev => prev.map(d => d.id === editingDelivery.id ? updated : d));
-      } else {
-        if (!permissions.canCreate) return;
-        const created = await deliveryApi.create(formData);
-        setDeliveries(prev => [...prev, created]);
-      }
-      setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' });
-      setEditingDelivery(null);
-      setIsModalOpen(false);
-      clearFilterCache();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '操作に失敗しました');
+  e.preventDefault();
+
+  // ── クライアントサイドバリデーション ────────────────────
+  if (!validateForm(formData)) return;
+
+  try {
+    if (editingDelivery) {
+      if (!permissions.canEdit) return;
+      const updated = await deliveryApi.update(editingDelivery.id, formData);
+      setDeliveries(prev => prev.map(d => d.id === editingDelivery.id ? updated : d));
+    } else {
+      if (!permissions.canCreate) return;
+      const created = await deliveryApi.create(formData);
+      setDeliveries(prev => [...prev, created]);
     }
-  }, [editingDelivery, formData, permissions.canCreate, permissions.canEdit]);
+    setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' });
+    setEditingDelivery(null);
+    setIsModalOpen(false);
+    clearAllErrors();
+    clearFilterCache();
+  } catch (err) {
+    alert(err instanceof Error ? err.message : '操作に失敗しました');
+  }
+}, [editingDelivery, formData, permissions.canCreate, permissions.canEdit, validateForm, clearAllErrors]);
 
   const handleEdit = useCallback((delivery: Delivery) => {
     if (!permissions.canEdit) return;
@@ -375,8 +384,6 @@ export default function Home() {
   const handleClearFilters = useCallback(() => { setAdvancedFilters(createEmptyFilters()); setActiveQuickFilter(null); setSearchTerm(''); setStatusFilter('all'); setCurrentPage(1); }, []);
   const handleOpenModal = useCallback(() => { if (!permissions.canCreate) return; setEditingDelivery(null); setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' }); setIsModalOpen(true); }, [permissions.canCreate]);
   const handleAutoRefresh = useCallback(() => { fetchDeliveries(); }, [fetchDeliveries]);
-  // ── Day 28: キーボードショートカット ──────────────────────
-  // C#のKeyBinding相当。モーダルが開いている間は無効化
   const anyModalOpen =
     isModalOpen || showExportModal || showImportModal ||
     showBackupRestoreModal || showNotificationSettings ||
@@ -441,7 +448,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{tCommon('appTitle')}</h1>
               {roleBadge && <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${roleBadge.className}`}>{roleBadge.label}</span>}
-              <span className="text-sm text-gray-500 dark:text-gray-400">Day 28: キーボードショートカット</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Day 34: Zodバリデーション</span>
             </div>
             <div className="flex items-center gap-2">
               {permissions.canViewAnalytics && (
@@ -694,15 +701,123 @@ export default function Home() {
       {isModalOpen && permissions.canCreate && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="modal-title">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
-            <h2 id="modal-title" className="text-xl font-bold mb-4">{editingDelivery ? tDelivery('editDelivery') : tDelivery('addNew')}</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div><label htmlFor="delivery-name" className="block text-sm font-medium mb-1">{tDelivery('name')} <span className="text-red-500">*</span></label><input id="delivery-name" type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" /></div>
-              <div><label htmlFor="delivery-address" className="block text-sm font-medium mb-1">{tDelivery('address')} <span className="text-red-500">*</span></label><input id="delivery-address" type="text" required value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" /></div>
-              <div><label htmlFor="delivery-status" className="block text-sm font-medium mb-1">{tDelivery('status')}</label><select id="delivery-status" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as Delivery['status'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"><option value="pending">{tStatus('pending')}</option><option value="in_transit">{tStatus('in_transit')}</option><option value="completed">{tStatus('completed')}</option></select></div>
-              <div><label htmlFor="delivery-date" className="block text-sm font-medium mb-1">{tDelivery('deliveryDate')} <span className="text-red-500">*</span></label><input id="delivery-date" type="date" required value={formData.deliveryDate} onChange={e => setFormData({ ...formData, deliveryDate: e.target.value })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" /></div>
+            <h2 id="modal-title" className="text-xl font-bold mb-4">
+              {editingDelivery ? tDelivery('editDelivery') : tDelivery('addNew')}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+
+              {/* 氏名 */}
+              <div>
+                <label htmlFor="delivery-name" className="block text-sm font-medium mb-1">
+                  {tDelivery('name')} <span className="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="delivery-name"
+                  type="text"
+                  value={formData.name}
+                  onChange={e => {
+                    setFormData({ ...formData, name: e.target.value });
+                    clearError('name');
+                  }}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${
+                    formErrors.name
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  aria-describedby={formErrors.name ? 'name-error' : undefined}
+                  aria-invalid={!!formErrors.name}
+                />
+                {formErrors.name && (
+                  <p id="name-error" className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">
+                    {formErrors.name}
+                  </p>
+                )}
+              </div>
+
+              {/* 住所 */}
+              <div>
+                <label htmlFor="delivery-address" className="block text-sm font-medium mb-1">
+                  {tDelivery('address')} <span className="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="delivery-address"
+                  type="text"
+                  value={formData.address}
+                  onChange={e => {
+                    setFormData({ ...formData, address: e.target.value });
+                    clearError('address');
+                  }}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${
+                    formErrors.address
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  aria-describedby={formErrors.address ? 'address-error' : undefined}
+                  aria-invalid={!!formErrors.address}
+                />
+                {formErrors.address && (
+                  <p id="address-error" className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">
+                    {formErrors.address}
+                  </p>
+                )}
+              </div>
+
+              {/* ステータス */}
+              <div>
+                <label htmlFor="delivery-status" className="block text-sm font-medium mb-1">
+                  {tDelivery('status')}
+                </label>
+                <select
+                  id="delivery-status"
+                  value={formData.status}
+                  onChange={e => setFormData({ ...formData, status: e.target.value as Delivery['status'] })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                >
+                  <option value="pending">{tStatus('pending')}</option>
+                  <option value="in_transit">{tStatus('in_transit')}</option>
+                  <option value="completed">{tStatus('completed')}</option>
+                </select>
+              </div>
+
+              {/* 配送日 */}
+              <div>
+                <label htmlFor="delivery-date" className="block text-sm font-medium mb-1">
+                  {tDelivery('deliveryDate')} <span className="text-red-500" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="delivery-date"
+                  type="date"
+                  value={formData.deliveryDate}
+                  onChange={e => {
+                    setFormData({ ...formData, deliveryDate: e.target.value });
+                    clearError('deliveryDate');
+                  }}
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${
+                    formErrors.deliveryDate
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  aria-describedby={formErrors.deliveryDate ? 'date-error' : undefined}
+                  aria-invalid={!!formErrors.deliveryDate}
+                />
+                {formErrors.deliveryDate && (
+                  <p id="date-error" className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">
+                    {formErrors.deliveryDate}
+                  </p>
+                )}
+              </div>
+
               <div className="flex gap-2 pt-4">
-                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">{editingDelivery ? tCommon('save') : tCommon('add')}</button>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">{tCommon('cancel')}</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  {editingDelivery ? tCommon('save') : tCommon('add')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsModalOpen(false); clearAllErrors(); }}
+                  className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                >
+                  {tCommon('cancel')}
+                </button>
               </div>
             </form>
           </div>

@@ -1,42 +1,42 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getToken } from 'next-auth/jwt';
+import type { NextRequest } from 'next/server';
 import { deliveryStore } from '@/lib/deliveryStore';
+import { createDeliverySchema, formatZodErrors } from '@/app/utils/validation';
+import { captureApiError } from '@/app/utils/sentry';
 
-export async function GET() {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+export async function GET(req: NextRequest) {
   try {
+    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const deliveries = await deliveryStore.getAll();
     return NextResponse.json(deliveries);
   } catch (error) {
-    console.error('GET /api/deliveries error:', error);
-    return NextResponse.json({ error: 'データの取得に失敗しました' }, { status: 500 });
+    captureApiError(error, { endpoint: '/api/deliveries', method: 'GET' });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if ((session.user as any)?.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
-    const { name, address, status, deliveryDate } = body;
-    if (!name || !address || !deliveryDate) {
-      return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 });
+    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (token.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    const body = await req.json();
+    const result = createDeliverySchema.safeParse(body);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: formatZodErrors(result.error) },
+        { status: 400 }
+      );
     }
-    const delivery = await deliveryStore.create({
-      name,
-      address,
-      status: status ?? 'pending',
-      deliveryDate,
-    });
+
+    const delivery = await deliveryStore.create(result.data);
     return NextResponse.json(delivery, { status: 201 });
   } catch (error) {
-    console.error('POST /api/deliveries error:', error);
-    return NextResponse.json({ error: '作成に失敗しました' }, { status: 500 });
+    captureApiError(error, { endpoint: '/api/deliveries', method: 'POST' });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
