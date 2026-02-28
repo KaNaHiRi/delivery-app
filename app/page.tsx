@@ -41,6 +41,11 @@ import { Keyboard } from 'lucide-react';
 import { createDeliverySchema } from './utils/validation';
 import { useFormValidation } from './hooks/useFormValidation';
 
+import MasterModal from './components/MasterModal';
+import type { MasterType } from './types/master';
+import { staffApi, customerApi } from '@/lib/masterApi';
+import type { Staff, Customer } from './types/master';
+import { BookUser } from 'lucide-react';
 
 const REFRESH_INTERVALS = [
   { label: '5秒', value: 5000 },
@@ -161,9 +166,15 @@ export default function Home() {
   const tStatus = useTranslations('status');
   const tFilter = useTranslations('filter');
 
-  const [formData, setFormData] = useState({ name: '', address: '', status: 'pending' as Delivery['status'], deliveryDate: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    status: 'pending' as Delivery['status'],
+    deliveryDate: '',
+    staffId: null as string | null,
+    customerId: null as string | null,
+  });
   const { errors: formErrors, validate: validateForm, clearError, clearAllErrors } = useFormValidation(createDeliverySchema);
-
 
   const fetchDeliveries = useCallback(async () => {
     try {
@@ -188,6 +199,13 @@ export default function Home() {
     if (!isMounted) return;
     fetchDeliveries();
   }, [isMounted, fetchDeliveries]);
+
+  // マスタデータ取得
+  useEffect(() => {
+    if (!isMounted) return;
+    staffApi.getAll().then(setStaffList).catch(() => {});
+    customerApi.getAll().then(setCustomerList).catch(() => {});
+  }, [isMounted]);
 
   useEffect(() => {
     if (!isMounted) return;
@@ -231,7 +249,13 @@ export default function Home() {
     if (statusFilter !== 'all') result = result.filter(d => d.status === statusFilter);
     if (activeQuickFilter) result = applyQuickFilter(result, activeQuickFilter);
     if (hasActiveFilters(advancedFilters)) result = applyAdvancedFilters(result, advancedFilters);
-    return [...result].sort((a, b) => { const av = a[sortKey]; const bv = b[sortKey]; if (av < bv) return sortOrder === 'asc' ? -1 : 1; if (av > bv) return sortOrder === 'asc' ? 1 : -1; return 0; });
+    return [...result].sort((a, b) => {
+      const av = a[sortKey] ?? '';
+      const bv = b[sortKey] ?? '';
+      if (av < bv) return sortOrder === 'asc' ? -1 : 1;
+      if (av > bv) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
   }, [deliveries, searchTerm, statusFilter, sortKey, sortOrder, activeQuickFilter, advancedFilters]);
 
   const orderedFilteredDeliveries = useMemo(() => {
@@ -289,7 +313,8 @@ export default function Home() {
       const created = await deliveryApi.create(formData);
       setDeliveries(prev => [...prev, created]);
     }
-    setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' });
+    setFormData({ name: '', address: '', status: 'pending' as Delivery['status'], deliveryDate: '', staffId: null, customerId: null });
+    
     setEditingDelivery(null);
     setIsModalOpen(false);
     clearAllErrors();
@@ -302,7 +327,7 @@ export default function Home() {
   const handleEdit = useCallback((delivery: Delivery) => {
     if (!permissions.canEdit) return;
     setEditingDelivery(delivery);
-    setFormData({ name: delivery.name, address: delivery.address, status: delivery.status, deliveryDate: delivery.deliveryDate });
+    setFormData({ name: delivery.name, address: delivery.address, status: delivery.status, deliveryDate: delivery.deliveryDate, staffId: delivery.staffId ?? null, customerId: delivery.customerId ?? null });
     setIsModalOpen(true);
   }, [permissions.canEdit]);
 
@@ -382,13 +407,18 @@ export default function Home() {
   }, [activeQuickFilter]);
 
   const handleClearFilters = useCallback(() => { setAdvancedFilters(createEmptyFilters()); setActiveQuickFilter(null); setSearchTerm(''); setStatusFilter('all'); setCurrentPage(1); }, []);
-  const handleOpenModal = useCallback(() => { if (!permissions.canCreate) return; setEditingDelivery(null); setFormData({ name: '', address: '', status: 'pending', deliveryDate: '' }); setIsModalOpen(true); }, [permissions.canCreate]);
+  const handleOpenModal = useCallback(() => { if (!permissions.canCreate) return; setEditingDelivery(null); setFormData({ name: '', address: '', status: 'pending', deliveryDate: '', staffId: null, customerId: null }); setIsModalOpen(true); }, [permissions.canCreate]);
   const handleAutoRefresh = useCallback(() => { fetchDeliveries(); }, [fetchDeliveries]);
   const anyModalOpen =
     isModalOpen || showExportModal || showImportModal ||
     showBackupRestoreModal || showNotificationSettings ||
     isAnalyticsModalOpen || showAdvancedFilter ||
     showFilterPresets || showShortcutHelp;
+
+  const [showMasterModal, setShowMasterModal] = useState(false);
+  const [masterModalType, setMasterModalType] = useState<MasterType>('staff');
+  const [staffList, setStaffList] = useState<Staff[]>([]);
+  const [customerList, setCustomerList] = useState<Customer[]>([]);
 
   useKeyboardShortcuts(
     {
@@ -455,6 +485,15 @@ export default function Home() {
                 <button onClick={() => setIsAnalyticsModalOpen(true)} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2" aria-label="分析モーダルを開く">
                   <BarChart3 className="w-4 h-4" aria-hidden="true" /><span>{tCommon('analytics') ?? 'Analytics'}</span>
                 </button>
+              )}
+              {permissions.canCreate && (
+              <button
+                onClick={() => { setMasterModalType('staff'); setShowMasterModal(true); }}
+                className="px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 text-sm"
+                aria-label="マスタ管理を開く"
+              >
+                <BookUser className="w-4 h-4" />マスタ
+              </button>
               )}
               <button onClick={() => setShowNotificationSettings(true)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="通知設定を開く"><Bell className="w-5 h-5" /></button>
               <LanguageSwitcher currentLocale={locale} />
@@ -779,6 +818,42 @@ export default function Home() {
                 </select>
               </div>
 
+              {/* 担当者選択 */}
+              <div>
+                <label htmlFor="delivery-staff" className="block text-sm font-medium mb-1">
+                  担当者
+                </label>
+                <select
+                  id="delivery-staff"
+                  value={formData.staffId ?? ''}
+                  onChange={e => setFormData({ ...formData, staffId: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                >
+                  <option value="">未割当</option>
+                  {staffList.filter(s => s.isActive).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 顧客選択 */}
+              <div>
+                <label htmlFor="delivery-customer" className="block text-sm font-medium mb-1">
+                  顧客
+                </label>
+                <select
+                  id="delivery-customer"
+                  value={formData.customerId ?? ''}
+                  onChange={e => setFormData({ ...formData, customerId: e.target.value || null })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                >
+                  <option value="">未選択</option>
+                  {customerList.filter(c => c.isActive).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* 配送日 */}
               <div>
                 <label htmlFor="delivery-date" className="block text-sm font-medium mb-1">
@@ -862,6 +937,11 @@ export default function Home() {
         isAdmin={permissions.canCreate}
         onClose={() => setShowShortcutHelp(false)}
       />      
+      <MasterModal
+        isOpen={showMasterModal}
+        type={masterModalType}
+        onClose={() => setShowMasterModal(false)}
+      />
       <PerformanceMonitor />
     </div>
   );

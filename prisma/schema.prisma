@@ -15,4 +15,33 @@ model Delivery {
   deliveryDate String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  staffId      String?
+  customerId   String?
+  staff        Staff?    @relation(fields: [staffId], references: [id])
+  customer     Customer? @relation(fields: [customerId], references: [id])
+}
+
+model Staff {
+  id         String     @id @default(cuid())
+  name       String
+  email      String     @unique
+  phone      String?
+  department String?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  deliveries Delivery[]
+}
+
+model Customer {
+  id         String     @id @default(cuid())
+  name       String
+  address    String
+  phone      String?
+  email      String?
+  note       String?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  deliveries Delivery[]
 }

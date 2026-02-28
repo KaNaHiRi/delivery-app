@@ -4,6 +4,10 @@ export interface Delivery {
   address: string;
   status: 'pending' | 'in_transit' | 'completed';
   deliveryDate: string;
+  staffId?: string | null;
+  customerId?: string | null;
+  staff?: { id: string; name: string } | null;
+  customer?: { id: string; name: string } | null;
 }
 
 export interface NotificationSettings {
@@ -11,8 +15,6 @@ export interface NotificationSettings {
   deadlineAlert: boolean;
   statusChangeAlert: boolean;
 }
-
-export type NotificationPermission = 'granted' | 'denied' | 'default';
 
 export type PeriodType = 'week' | 'month' | 'last30days' | 'custom';
 
@@ -26,38 +28,27 @@ export interface PeriodSelection {
   dateRange?: DateRange;
 }
 
-// ===== Day 18: 高度なフィルター機能の型定義 =====
-
-/**
- * 詳細フィルター条件
- */
 export interface AdvancedFilters {
-  statuses: ('pending' | 'in_transit' | 'completed')[];  // 選択中のステータス（複数可）
+  statuses: ('pending' | 'in_transit' | 'completed')[];
   dateRange: {
-    startDate: string;  // YYYY-MM-DD
-    endDate: string;    // YYYY-MM-DD
+    startDate: string;
+    endDate: string;
   } | null;
-  addressKeyword: string;  // 住所キーワード
-  nameKeyword: string;     // 名前キーワード
+  addressKeyword: string;
+  nameKeyword: string;
 }
 
-/**
- * フィルタープリセット
- */
 export interface FilterPreset {
   id: string;
   name: string;
   filters: AdvancedFilters;
-  createdAt: string;  // ISO 8601形式
+  createdAt: string;
 }
 
-/**
- * クイックフィルターの種類
- */
-export type QuickFilterType = 
-  | 'today'           // 今日配送予定
-  | 'tomorrow'        // 明日配送予定
-  | 'this_week'       // 今週配送予定
-  | 'overdue'         // 配送遅延（pending で過去日付）
-  | 'in_transit_only' // 配送中のみ
-  | 'completed_today'; // 本日完了分
+export type QuickFilterType =
+  | 'today'
+  | 'tomorrow'
+  | 'this_week'
+  | 'overdue'
+  | 'in_transit_only'
+  | 'completed_today';
