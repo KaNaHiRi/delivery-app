@@ -13,6 +13,10 @@ jobs:
   unit-test:
     name: Unit Tests (Jest)
     runs-on: ubuntu-latest
+    env:
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      DATABASE_URL: file:./prisma/dev.db
+      NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,6 +29,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run migrations
+        run: npx prisma migrate deploy
 
       - name: Run Jest tests
         run: npm test -- --ci --coverage --watchAll=false
@@ -43,6 +53,14 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [unit-test]
+    env:
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      AUTH_TRUST_HOST: true
+      DATABASE_URL: file:./prisma/dev.db
+      NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: kanahiri-dev
+      SENTRY_PROJECT: javascript-nextjs
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,11 +74,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
       - name: Build Next.js
         run: npm run build
-        env:
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          AUTH_TRUST_HOST: true
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -73,6 +91,11 @@ jobs:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
     needs: [build]
+    env:
+      AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      AUTH_TRUST_HOST: true
+      DATABASE_URL: file:./prisma/dev.db
+      NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,6 +109,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run migrations
+        run: npx prisma migrate deploy
+
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
@@ -93,8 +122,6 @@ jobs:
         run: npm run e2e
         env:
           CI: true
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          AUTH_TRUST_HOST: true
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

@@ -10,8 +10,11 @@ interface ErrorProps {
 
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
-    // エラーログ（実務ではSentryなどに送信）
     console.error('Application Error:', error);
+    // Sentryにエラーを送信
+    import('@sentry/nextjs').then(({ captureException }) => {
+      captureException(error);
+    });
   }, [error]);
 
   return (
