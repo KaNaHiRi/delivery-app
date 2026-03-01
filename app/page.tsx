@@ -53,6 +53,9 @@ import { DEFAULT_WIDGETS, DEFAULT_LAYOUT, loadDashboardConfig, saveDashboardConf
 import { Settings } from 'lucide-react';
 import ReportModal from './components/ReportModal';
 
+import EmailNotificationModal from './components/EmailNotificationModal';
+import { AtSign } from 'lucide-react';
+
 const REFRESH_INTERVALS = [
   { label: '5秒', value: 5000 },
   { label: '10秒', value: 10000 },
@@ -172,6 +175,7 @@ export default function Home() {
   const tStatus = useTranslations('status');
   const tFilter = useTranslations('filter');
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -430,7 +434,7 @@ export default function Home() {
     isModalOpen || showExportModal || showImportModal ||
     showBackupRestoreModal || showNotificationSettings ||
     isAnalyticsModalOpen || showAdvancedFilter ||
-    showFilterPresets || showShortcutHelp || showReportModal;
+    showFilterPresets || showShortcutHelp || showReportModal || showEmailModal;
 
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalType, setMasterModalType] = useState<MasterType>('staff');
@@ -517,7 +521,16 @@ export default function Home() {
                   <span>レポート</span>
                 </button>
               )}
-
+              {permissions.canViewAnalytics && (
+              <button
+                onClick={() => setShowEmailModal(true)}
+                className="px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 flex items-center gap-2"
+                aria-label="メール通知を送信"
+              >
+                <AtSign className="w-4 h-4" aria-hidden="true" />
+                <span>メール</span>
+              </button>
+              )}
               <button
                 onClick={() => setShowDashboardCustomize(true)}
                 className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2 text-sm border border-gray-300 dark:border-gray-600"
@@ -998,6 +1011,11 @@ export default function Home() {
         deliveries={deliveries}
         onClose={() => setShowReportModal(false)}
       />
+      <EmailNotificationModal
+        isOpen={showEmailModal}
+        deliveries={deliveries}
+        onClose={() => setShowEmailModal(false)}
+      />      
       <PerformanceMonitor />
     </div>
   );

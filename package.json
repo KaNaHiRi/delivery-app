@@ -25,6 +25,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
+    "@react-email/components": "^1.0.8",
+    "@react-email/render": "^2.0.4",
     "@sentry/nextjs": "^10.40.0",
     "@tanstack/react-virtual": "^3.13.18",
     "@types/react-window": "^1.8.8",
@@ -39,6 +41,7 @@
     "react-dom": "19.2.3",
     "react-window": "^2.2.7",
     "recharts": "^3.7.0",
+    "resend": "^6.9.3",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
