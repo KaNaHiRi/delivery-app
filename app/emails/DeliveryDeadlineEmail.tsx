@@ -21,7 +21,7 @@ export function DeliveryDeadlineEmail({
   return (
     <Html lang="ja">
       <Head />
-      <Preview>⚠️ 期限が迫っている配送があります ({deliveries.length}件)</Preview>
+      <Preview>⚠️ 期限が迫っている配送があります ({String(deliveries.length)}件)</Preview>
       <Body style={{ backgroundColor: '#f9fafb', fontFamily: 'sans-serif' }}>
         <Container style={{ maxWidth: '600px', margin: '0 auto', padding: '24px' }}>
           <Section style={{ backgroundColor: '#ffffff', borderRadius: '8px', padding: '32px', border: '1px solid #fca5a5' }}>
