@@ -47,6 +47,12 @@ import { staffApi, customerApi } from '@/lib/masterApi';
 import type { Staff, Customer } from './types/master';
 import { BookUser } from 'lucide-react';
 
+import DashboardCustomizeModal from './components/DashboardCustomizeModal';
+import type { WidgetConfig, DashboardLayout } from './types/delivery';
+import { DEFAULT_WIDGETS, DEFAULT_LAYOUT, loadDashboardConfig, saveDashboardConfig } from './utils/dashboard';
+import { Settings } from 'lucide-react';
+
+
 const REFRESH_INTERVALS = [
   { label: '5秒', value: 5000 },
   { label: '10秒', value: 10000 },
@@ -217,6 +223,9 @@ export default function Home() {
     if (savedAdvancedFilters) setAdvancedFilters(JSON.parse(savedAdvancedFilters));
     const savedFilterPresets = localStorage.getItem('filter_presets');
     if (savedFilterPresets) setFilterPresets(JSON.parse(savedFilterPresets));
+    const { widgets, layout } = loadDashboardConfig();
+    setDashboardWidgets(widgets);
+    setDashboardLayout(layout);
   }, [isMounted]);
 
   useEffect(() => { if (!isMounted) return; localStorage.setItem('notification_settings', JSON.stringify(notificationSettings)); }, [notificationSettings, isMounted]);
@@ -409,6 +418,13 @@ export default function Home() {
   const handleClearFilters = useCallback(() => { setAdvancedFilters(createEmptyFilters()); setActiveQuickFilter(null); setSearchTerm(''); setStatusFilter('all'); setCurrentPage(1); }, []);
   const handleOpenModal = useCallback(() => { if (!permissions.canCreate) return; setEditingDelivery(null); setFormData({ name: '', address: '', status: 'pending', deliveryDate: '', staffId: null, customerId: null }); setIsModalOpen(true); }, [permissions.canCreate]);
   const handleAutoRefresh = useCallback(() => { fetchDeliveries(); }, [fetchDeliveries]);
+
+  const handleDashboardCustomize = useCallback((widgets: WidgetConfig[], layout: DashboardLayout) => {
+    setDashboardWidgets(widgets);
+    setDashboardLayout(layout);
+    saveDashboardConfig(widgets, layout);
+  }, []);
+
   const anyModalOpen =
     isModalOpen || showExportModal || showImportModal ||
     showBackupRestoreModal || showNotificationSettings ||
@@ -419,6 +435,11 @@ export default function Home() {
   const [masterModalType, setMasterModalType] = useState<MasterType>('staff');
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [customerList, setCustomerList] = useState<Customer[]>([]);
+
+  // ── Day 37: ダッシュボードカスタマイズ ──
+  const [dashboardWidgets, setDashboardWidgets] = useState<WidgetConfig[]>(DEFAULT_WIDGETS);
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>(DEFAULT_LAYOUT);
+  const [showDashboardCustomize, setShowDashboardCustomize] = useState(false);
 
   useKeyboardShortcuts(
     {
@@ -486,6 +507,14 @@ export default function Home() {
                   <BarChart3 className="w-4 h-4" aria-hidden="true" /><span>{tCommon('analytics') ?? 'Analytics'}</span>
                 </button>
               )}
+              <button
+                onClick={() => setShowDashboardCustomize(true)}
+                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2 text-sm border border-gray-300 dark:border-gray-600"
+                aria-label="ダッシュボードをカスタマイズ"
+                title="ダッシュボードカスタマイズ"
+              >
+                <Settings className="w-4 h-4" />カスタマイズ
+              </button>
               {permissions.canCreate && (
               <button
                 onClick={() => { setMasterModalType('staff'); setShowMasterModal(true); }}
@@ -514,7 +543,11 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
-        <DashboardStats deliveries={deliveries} />
+        <DashboardStats
+          deliveries={deliveries}
+          widgets={dashboardWidgets}
+          layout={dashboardLayout}
+        />
         <RoleBanner role={role} />
         <AutoRefreshBar onRefresh={handleAutoRefresh} />
 
@@ -941,6 +974,13 @@ export default function Home() {
         isOpen={showMasterModal}
         type={masterModalType}
         onClose={() => setShowMasterModal(false)}
+      />
+      <DashboardCustomizeModal
+        isOpen={showDashboardCustomize}
+        widgets={dashboardWidgets}
+        layout={dashboardLayout}
+        onApply={handleDashboardCustomize}
+        onClose={() => setShowDashboardCustomize(false)}
       />
       <PerformanceMonitor />
     </div>

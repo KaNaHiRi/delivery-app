@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import DashboardStats from './DashboardStats';
+import { DEFAULT_WIDGETS, DEFAULT_LAYOUT } from '../utils/dashboard';
 import type { Delivery } from '../types/delivery';
 
 const meta: Meta<typeof DashboardStats> = {
@@ -27,16 +28,26 @@ const sampleDeliveries: Delivery[] = [
 ];
 
 export const Default: Story = {
-  args: { deliveries: sampleDeliveries },
+  args: {
+    deliveries: sampleDeliveries,
+    widgets: DEFAULT_WIDGETS,
+    layout: DEFAULT_LAYOUT,
+  },
 };
 
 export const Empty: Story = {
-  args: { deliveries: [] },
+  args: {
+    deliveries: [],
+    widgets: DEFAULT_WIDGETS,
+    layout: DEFAULT_LAYOUT,
+  },
 };
 
 export const AllCompleted: Story = {
   args: {
     deliveries: sampleDeliveries.map(d => ({ ...d, status: 'completed' as const })),
+    widgets: DEFAULT_WIDGETS,
+    layout: DEFAULT_LAYOUT,
   },
 };
 
@@ -49,5 +60,39 @@ export const LargeDataset: Story = {
       status: (['pending', 'in_transit', 'completed'] as const)[i % 3],
       deliveryDate: today,
     })),
+    widgets: DEFAULT_WIDGETS,
+    layout: DEFAULT_LAYOUT,
+  },
+};
+
+export const TwoColumnLayout: Story = {
+  args: {
+    deliveries: sampleDeliveries,
+    widgets: DEFAULT_WIDGETS,
+    layout: 'grid-2',
+  },
+};
+
+export const FourColumnLayout: Story = {
+  args: {
+    deliveries: sampleDeliveries,
+    widgets: DEFAULT_WIDGETS,
+    layout: 'grid-4',
+  },
+};
+
+export const PartialWidgets: Story = {
+  args: {
+    deliveries: sampleDeliveries,
+    widgets: DEFAULT_WIDGETS.map((w, i) => ({ ...w, enabled: i < 3 })),
+    layout: DEFAULT_LAYOUT,
+  },
+};
+
+export const NoWidgets: Story = {
+  args: {
+    deliveries: sampleDeliveries,
+    widgets: DEFAULT_WIDGETS.map(w => ({ ...w, enabled: false })),
+    layout: DEFAULT_LAYOUT,
   },
 };
