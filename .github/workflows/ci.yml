@@ -61,6 +61,8 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: kanahiri-dev
       SENTRY_PROJECT: javascript-nextjs
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
