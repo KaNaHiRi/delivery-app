@@ -19,7 +19,8 @@
     "action": "アクション",
     "backupRestore": "バックアップ/リストア",
     "presets": "プリセット",
-    "analytics": "分析"
+    "analytics": "分析",
+    "report": "レポート"
   },
   "status": {
     "pending": "未着手",

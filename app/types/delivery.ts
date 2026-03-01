@@ -72,3 +72,22 @@ export interface WidgetConfig {
 }
 
 export type DashboardLayout = 'grid-2' | 'grid-3' | 'grid-4';
+
+// ── Day 38: レポート自動生成 ──
+export interface ReportConfig {
+  title: string;
+  period: DateRange;
+  includeStats: boolean;
+  includeChart: boolean;
+  includeDeliveryList: boolean;
+  groupBy: 'status' | 'date' | 'staff';
+}
+
+export interface ReportStats {
+  total: number;
+  pending: number;
+  inTransit: number;
+  completed: number;
+  completionRate: number;
+  averagePerDay: number;
+}

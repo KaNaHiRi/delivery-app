@@ -19,7 +19,8 @@
     "action": "Action",
     "backupRestore": "Backup / Restore",
     "presets": "Presets",
-    "analytics": "Analytics"
+    "analytics": "Analytics",
+    "report": "Report"
   },
   "status": {
     "pending": "Pending",

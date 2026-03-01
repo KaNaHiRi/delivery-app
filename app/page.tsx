@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Plus, Search, Download, Upload, Save, Bell, BarChart3,
   Filter, X, Bookmark, RefreshCw, Play, Pause, ShieldCheck, ShieldAlert,
-  Loader2
+  Loader2, FileText
 } from 'lucide-react';
 import type { 
   Delivery, NotificationSettings, PeriodSelection,
@@ -51,7 +51,7 @@ import DashboardCustomizeModal from './components/DashboardCustomizeModal';
 import type { WidgetConfig, DashboardLayout } from './types/delivery';
 import { DEFAULT_WIDGETS, DEFAULT_LAYOUT, loadDashboardConfig, saveDashboardConfig } from './utils/dashboard';
 import { Settings } from 'lucide-react';
-
+import ReportModal from './components/ReportModal';
 
 const REFRESH_INTERVALS = [
   { label: '5秒', value: 5000 },
@@ -171,6 +171,7 @@ export default function Home() {
   const tDelivery = useTranslations('delivery');
   const tStatus = useTranslations('status');
   const tFilter = useTranslations('filter');
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -429,7 +430,7 @@ export default function Home() {
     isModalOpen || showExportModal || showImportModal ||
     showBackupRestoreModal || showNotificationSettings ||
     isAnalyticsModalOpen || showAdvancedFilter ||
-    showFilterPresets || showShortcutHelp;
+    showFilterPresets || showShortcutHelp || showReportModal;
 
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalType, setMasterModalType] = useState<MasterType>('staff');
@@ -507,6 +508,16 @@ export default function Home() {
                   <BarChart3 className="w-4 h-4" aria-hidden="true" /><span>{tCommon('analytics') ?? 'Analytics'}</span>
                 </button>
               )}
+              {permissions.canViewAnalytics && (
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                  aria-label="レポートを生成">
+                  <FileText className="w-4 h-4" aria-hidden="true" />
+                  <span>レポート</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setShowDashboardCustomize(true)}
                 className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2 text-sm border border-gray-300 dark:border-gray-600"
@@ -981,6 +992,11 @@ export default function Home() {
         layout={dashboardLayout}
         onApply={handleDashboardCustomize}
         onClose={() => setShowDashboardCustomize(false)}
+      />
+      <ReportModal
+        isOpen={showReportModal}
+        deliveries={deliveries}
+        onClose={() => setShowReportModal(false)}
       />
       <PerformanceMonitor />
     </div>
