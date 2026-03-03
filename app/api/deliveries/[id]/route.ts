@@ -1,75 +1,105 @@
-import { NextResponse } from 'next/server';
+// app/api/deliveries/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import type { NextRequest } from 'next/server';
-import { deliveryStore } from '@/lib/deliveryStore';
-import { updateDeliverySchema, deliveryIdSchema, formatZodErrors } from '@/app/utils/validation';
-import { captureApiError } from '@/app/utils/sentry';
+import { prisma } from '@/lib/prisma';
+import { updateDeliverySchema } from '@/app/utils/validation';
+import { createAuditLog } from '@/lib/auditLog';
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { id } = await params;
-    const idResult = deliveryIdSchema.safeParse(id);
-    if (!idResult.success) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-
-    const delivery = await deliveryStore.getById(id);
-    if (!delivery) return NextResponse.json({ error: 'Not Found' }, { status: 404 });
-    return NextResponse.json(delivery);
-  } catch (error) {
-    captureApiError(error, { endpoint: '/api/deliveries/[id]', method: 'GET' });
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  const { id } = await params;
+  const body = await request.json();
+  const result = updateDeliverySchema.safeParse(body);
+  if (!result.success) {
+    return NextResponse.json({ error: result.error.issues }, { status: 400 });
   }
+
+  // ステータス変更のみ一般ユーザーも可
+  const isStatusOnlyUpdate =
+    Object.keys(result.data).length === 1 && 'status' in result.data;
+  if (!isStatusOnlyUpdate && token.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // 変更前の値を取得
+  const before = await prisma.delivery.findUnique({ where: { id } });
+  if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  const delivery = await prisma.delivery.update({
+    where: { id },
+    data: {
+      ...(result.data.name         !== undefined ? { name:         result.data.name }         : {}),
+      ...(result.data.address      !== undefined ? { address:      result.data.address }      : {}),
+      ...(result.data.status       !== undefined ? { status:       result.data.status }       : {}),
+      ...(result.data.deliveryDate !== undefined ? { deliveryDate: result.data.deliveryDate } : {}),
+      ...(result.data.staffId      !== undefined ? { staffId:      result.data.staffId }      : {}),
+      ...(result.data.customerId   !== undefined ? { customerId:   result.data.customerId }   : {}),
+      ...(result.data.locationId   !== undefined ? { locationId:   result.data.locationId }   : {}),
+    },
+    include: {
+      staff:    { select: { id: true, name: true } },
+      customer: { select: { id: true, name: true } },
+      location: { select: { id: true, name: true } },
+    },
+  });
+
+  // ── Day 41: 変更差分を計算してログ記録 ──
+  const changedFields: Record<string, unknown> = {};
+  const oldFields:     Record<string, unknown> = {};
+  for (const key of Object.keys(result.data) as (keyof typeof result.data)[]) {
+    const newVal = result.data[key];
+    const oldVal = (before as Record<string, unknown>)[key];
+    if (newVal !== oldVal) {
+      changedFields[key] = newVal;
+      oldFields[key]     = oldVal;
+    }
+  }
+  if (Object.keys(changedFields).length > 0) {
+    await createAuditLog({
+      action:     'UPDATE',
+      entityType: 'Delivery',
+      entityId:   delivery.id,
+      entityName: delivery.name,
+      oldValues:  oldFields,
+      newValues:  changedFields,
+      userId:     token.email as string ?? null,
+      userName:   token.name  as string ?? null,
+    });
+  }
+
+  return NextResponse.json(delivery);
 }
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (token.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const { id } = await params;
-    const idResult = deliveryIdSchema.safeParse(id);
-    if (!idResult.success) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
+  const { id } = await params;
 
-    const body = await req.json();
-    const isStatusOnlyChange = Object.keys(body).length === 1 && 'status' in body;
-    if (!isStatusOnlyChange && token.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+  // 削除前に情報を取得
+  const before = await prisma.delivery.findUnique({ where: { id } });
+  if (!before) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const result = updateDeliverySchema.safeParse(body);
-    if (!result.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: formatZodErrors(result.error) },
-        { status: 400 }
-      );
-    }
+  await prisma.delivery.delete({ where: { id } });
 
-    const updated = await deliveryStore.update(id, result.data);
-    if (!updated) return NextResponse.json({ error: 'Not Found' }, { status: 404 });
-    return NextResponse.json(updated);
-  } catch (error) {
-    captureApiError(error, { endpoint: '/api/deliveries/[id]', method: 'PUT' });
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
+  await createAuditLog({
+    action:     'DELETE',
+    entityType: 'Delivery',
+    entityId:   id,
+    entityName: before.name,
+    oldValues:  { name: before.name, address: before.address, status: before.status, deliveryDate: before.deliveryDate },
+    userId:     token.email as string ?? null,
+    userName:   token.name  as string ?? null,
+  });
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const token = await getToken({ req, secret: process.env.AUTH_SECRET });
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (token.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-    const { id } = await params;
-    const idResult = deliveryIdSchema.safeParse(id);
-    if (!idResult.success) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
-
-    const success = await deliveryStore.delete(id);
-    if (!success) return NextResponse.json({ error: 'Not Found' }, { status: 404 });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    captureApiError(error, { endpoint: '/api/deliveries/[id]', method: 'DELETE' });
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
+  return NextResponse.json({ success: true });
 }

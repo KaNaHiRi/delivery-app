@@ -7,41 +7,67 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Location {
+  id          String     @id @default(cuid())
+  name        String
+  address     String
+  phone       String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deliveries  Delivery[]
+}
+
 model Delivery {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   name         String
   address      String
-  status       String   @default("pending")
+  status       String     @default("pending")
   deliveryDate String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
   staffId      String?
   customerId   String?
-  staff        Staff?    @relation(fields: [staffId], references: [id])
-  customer     Customer? @relation(fields: [customerId], references: [id])
+  locationId   String?
+  staff        Staff?     @relation(fields: [staffId], references: [id])
+  customer     Customer?  @relation(fields: [customerId], references: [id])
+  location     Location?  @relation(fields: [locationId], references: [id])
 }
 
 model Staff {
-  id         String     @id @default(cuid())
-  name       String
-  email      String     @unique
-  phone      String?
-  department String?
-  isActive   Boolean    @default(true)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  deliveries Delivery[]
+  id          String     @id @default(cuid())
+  name        String
+  email       String     @unique
+  phone       String?
+  department  String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deliveries  Delivery[]
 }
 
 model Customer {
-  id         String     @id @default(cuid())
-  name       String
-  address    String
-  phone      String?
-  email      String?
-  note       String?
-  isActive   Boolean    @default(true)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  deliveries Delivery[]
+  id          String     @id @default(cuid())
+  name        String
+  address     String
+  phone       String?
+  email       String?
+  note        String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deliveries  Delivery[]
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // "CREATE" | "UPDATE" | "DELETE"
+  entityType  String   // "Delivery" | "Staff" | "Customer" | "Location"
+  entityId    String
+  entityName  String   // 表示用（例: "山田太郎"）
+  oldValues   String?  // JSON文字列（UPDATE/DELETE時）
+  newValues   String?  // JSON文字列（CREATE/UPDATE時）
+  userId      String?  // ログインユーザーのemail
+  userName    String?  // 表示名
+  createdAt   DateTime @default(now())
 }

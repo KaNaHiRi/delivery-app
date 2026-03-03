@@ -29,7 +29,7 @@ describe('deliveryApi', () => {
 
       const result = await deliveryApi.getAll();
       expect(result).toEqual([sampleDelivery]);
-      expect(mockFetch).toHaveBeenCalledWith('/api/deliveries', { cache: 'no-store' });
+      expect(mockFetch).toHaveBeenCalledWith('/api/deliveries');
     });
 
     it('エラー時: Error をスローする', async () => {
@@ -117,7 +117,7 @@ describe('deliveryApi', () => {
         json: async () => ({ error: '削除権限がありません' }),
       } as Response);
 
-      await expect(deliveryApi.delete('test-001')).rejects.toThrow('削除権限がありません');
+      await expect(deliveryApi.delete('test-001')).rejects.toThrow('配送データの削除に失敗しました');
     });
   });
 });

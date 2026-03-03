@@ -19,12 +19,17 @@ export const createDeliverySchema = z.object({
     .max(200, '住所は200文字以内で入力してください')
     .trim(),
 
-  status: deliveryStatusSchema,
+  status: deliveryStatusSchema.optional(),
 
   deliveryDate: z
     .string()
     .min(1, '配送日は必須です')
     .regex(/^\d{4}-\d{2}-\d{2}$/, '配送日はYYYY-MM-DD形式で入力してください'),
+
+  // ── Day 36〜40 で追加されたリレーションID ──
+  staffId:    z.string().nullable().optional(),
+  customerId: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
 });
 
 // ─── 配送データ更新スキーマ（部分更新）────────────────────
@@ -49,6 +54,11 @@ export const updateDeliverySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, '配送日はYYYY-MM-DD形式で入力してください')
     .optional(),
+
+  // ── Day 36〜40 で追加されたリレーションID ──
+  staffId:    z.string().nullable().optional(),
+  customerId: z.string().nullable().optional(),
+  locationId: z.string().nullable().optional(),
 });
 
 // ─── ID スキーマ ───────────────────────────────────────────
@@ -59,7 +69,6 @@ export type CreateDeliveryInput = z.infer<typeof createDeliverySchema>;
 export type UpdateDeliveryInput = z.infer<typeof updateDeliverySchema>;
 
 // ─── Zodエラーをフラットなオブジェクトに変換 ──────────────
-// v4では error.errors → error.issues に変更
 export function formatZodErrors(error: z.ZodError): Record<string, string> {
   const errors: Record<string, string> = {};
   error.issues.forEach((issue) => {

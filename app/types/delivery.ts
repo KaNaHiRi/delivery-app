@@ -6,8 +6,10 @@ export interface Delivery {
   deliveryDate: string;
   staffId?: string | null;
   customerId?: string | null;
+  locationId?: string | null;
   staff?: { id: string; name: string } | null;
   customer?: { id: string; name: string } | null;
+  location?: { id: string; name: string } | null;
 }
 
 export interface NotificationSettings {
@@ -16,78 +18,56 @@ export interface NotificationSettings {
   statusChangeAlert: boolean;
 }
 
+export type NotificationPermission = 'granted' | 'denied' | 'default';
 export type PeriodType = 'week' | 'month' | 'last30days' | 'custom';
-
-export interface DateRange {
-  startDate: string;
-  endDate: string;
-}
-
-export interface PeriodSelection {
-  type: PeriodType;
-  dateRange?: DateRange;
-}
-
+export interface DateRange { startDate: string; endDate: string; }
+export interface PeriodSelection { type: PeriodType; dateRange?: DateRange; }
 export interface AdvancedFilters {
   statuses: ('pending' | 'in_transit' | 'completed')[];
-  dateRange: {
-    startDate: string;
-    endDate: string;
-  } | null;
+  dateRange: { startDate: string; endDate: string; } | null;
   addressKeyword: string;
   nameKeyword: string;
 }
-
 export interface FilterPreset {
-  id: string;
-  name: string;
-  filters: AdvancedFilters;
+  id: string; 
+  name: string; 
+  filters: AdvancedFilters; 
   createdAt: string;
 }
-
-export type QuickFilterType =
-  | 'today'
-  | 'tomorrow'
-  | 'this_week'
-  | 'overdue'
-  | 'in_transit_only'
-  | 'completed_today';
-
-  // ── Day 37: ダッシュボードカスタマイズ ──
-export type WidgetId = 
-  | 'stats_total'
-  | 'stats_pending'
-  | 'stats_in_transit'
-  | 'stats_completed'
-  | 'stats_today'
-  | 'stats_overdue';
-
+export type QuickFilterType = 'today' | 'tomorrow' | 'this_week' | 'overdue' | 'in_transit_only' | 'completed_today';
+export type WidgetId = 'stats_total' | 'stats_pending' | 'stats_in_transit' | 'stats_completed' | 'stats_today' | 'stats_overdue';
 export interface WidgetConfig {
-  id: WidgetId;
-  label: string;
-  enabled: boolean;
+  id: WidgetId; 
+  label: string; 
+  enabled: boolean; 
   order: number;
-  color: 'blue' | 'yellow' | 'green' | 'orange' | 'red' | 'purple';
+  color: 'blue' | 'yellow' | 'green' | 'orange' | 'red' | 'purple'; 
   icon: string;
 }
-
 export type DashboardLayout = 'grid-2' | 'grid-3' | 'grid-4';
-
-// ── Day 38: レポート自動生成 ──
 export interface ReportConfig {
-  title: string;
-  period: DateRange;
+  title: string; 
+  period: DateRange; 
   includeStats: boolean;
-  includeChart: boolean;
-  includeDeliveryList: boolean;
+  includeChart: boolean; 
+  includeDeliveryList: boolean; 
   groupBy: 'status' | 'date' | 'staff';
 }
-
 export interface ReportStats {
-  total: number;
-  pending: number;
-  inTransit: number;
+  total: number; 
+  pending: number; 
+  inTransit: number; 
   completed: number;
-  completionRate: number;
+  completionRate: number; 
   averagePerDay: number;
 }
+
+export type FormData = {
+  name: string;
+  address: string;
+  status: 'pending' | 'in_transit' | 'completed';
+  deliveryDate: string;
+  staffId: string | null;
+  customerId: string | null;
+  locationId: string | null;
+};

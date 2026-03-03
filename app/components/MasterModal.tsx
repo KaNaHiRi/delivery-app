@@ -1,9 +1,12 @@
+// app/components/MasterModal.tsx（完全版）
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Plus, Pencil, Trash2, UserCheck, Users } from 'lucide-react';
-import type { Staff, Customer, MasterType } from '@/app/types/master';
-import { staffApi, customerApi } from '@/lib/masterApi';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Plus, Pencil, Trash2, Loader2, Building2 } from 'lucide-react';
+import type { MasterType } from '@/app/types/master';
+import type { Staff, Customer, Location } from '@/app/types/master';
+import { staffApi, customerApi, locationApi } from '@/lib/masterApi';
+import { useRole } from '@/app/hooks/useRole';
 
 interface MasterModalProps {
   isOpen: boolean;
@@ -11,320 +14,447 @@ interface MasterModalProps {
   onClose: () => void;
 }
 
-// C#: Tabコントロールで担当者・顧客を切り替えるダイアログに対応
-export default function MasterModal({ isOpen, type, onClose }: MasterModalProps) {
+// ── Staff フォーム ──────────────────────────────────────────
+function StaffForm({ onSave, onCancel, initial }: {
+  onSave: (data: Omit<Staff, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onCancel: () => void;
+  initial?: Staff;
+}) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [email, setEmail] = useState(initial?.email ?? '');
+  const [phone, setPhone] = useState(initial?.phone ?? '');
+  const [department, setDepartment] = useState(initial?.department ?? '');
+  const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !email) return;
+    setSaving(true);
+    try {
+      await onSave({ name, email, phone: phone || null, department: department || null, isActive });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">名前 *</label>
+          <input value={name} onChange={e => setName(e.target.value)} required
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">メール *</label>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">電話番号</label>
+          <input value={phone} onChange={e => setPhone(e.target.value)}
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">部署</label>
+          <input value={department} onChange={e => setDepartment(e.target.value)}
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id="staff-active" checked={isActive} onChange={e => setIsActive(e.target.checked)}
+          className="w-4 h-4" />
+        <label htmlFor="staff-active" className="text-sm">有効</label>
+      </div>
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving}
+          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+          {saving && <Loader2 size={12} className="animate-spin" />}保存
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-3 py-1.5 bg-gray-500 text-white text-sm rounded hover:bg-gray-600">
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Customer フォーム ───────────────────────────────────────
+function CustomerForm({ onSave, onCancel, initial }: {
+  onSave: (data: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onCancel: () => void;
+  initial?: Customer;
+}) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [address, setAddress] = useState(initial?.address ?? '');
+  const [phone, setPhone] = useState(initial?.phone ?? '');
+  const [email, setEmail] = useState(initial?.email ?? '');
+  const [note, setNote] = useState(initial?.note ?? '');
+  const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !address) return;
+    setSaving(true);
+    try {
+      await onSave({ name, address, phone: phone || null, email: email || null, note: note || null, isActive });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">顧客名 *</label>
+          <input value={name} onChange={e => setName(e.target.value)} required
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">住所 *</label>
+          <input value={address} onChange={e => setAddress(e.target.value)} required
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">電話番号</label>
+          <input value={phone} onChange={e => setPhone(e.target.value)}
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">メール</label>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium mb-1">備考</label>
+        <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
+          className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id="customer-active" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="w-4 h-4" />
+        <label htmlFor="customer-active" className="text-sm">有効</label>
+      </div>
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving}
+          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+          {saving && <Loader2 size={12} className="animate-spin" />}保存
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-3 py-1.5 bg-gray-500 text-white text-sm rounded hover:bg-gray-600">
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Location フォーム（Day 40新規）────────────────────────
+function LocationForm({ onSave, onCancel, initial }: {
+  onSave: (data: Omit<Location, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onCancel: () => void;
+  initial?: Location;
+}) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [address, setAddress] = useState(initial?.address ?? '');
+  const [phone, setPhone] = useState(initial?.phone ?? '');
+  const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !address) return;
+    setSaving(true);
+    try {
+      await onSave({ name, address, phone: phone || null, isActive });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">拠点名 *</label>
+          <input value={name} onChange={e => setName(e.target.value)} required
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+            placeholder="例: 本院、東京分院" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">住所 *</label>
+          <input value={address} onChange={e => setAddress(e.target.value)} required
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">電話番号</label>
+          <input value={phone} onChange={e => setPhone(e.target.value)}
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id="location-active" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="w-4 h-4" />
+        <label htmlFor="location-active" className="text-sm">有効</label>
+      </div>
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving}
+          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+          {saving && <Loader2 size={12} className="animate-spin" />}保存
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-3 py-1.5 bg-gray-500 text-white text-sm rounded hover:bg-gray-600">
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── メインコンポーネント ───────────────────────────────────
+export default function MasterModal({ isOpen, type: initialType, onClose }: MasterModalProps) {
+  const { role } = useRole();
+  const isAdmin = role === 'admin';
+
+  const [activeTab, setActiveTab] = useState<MasterType>(initialType);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [customerList, setCustomerList] = useState<Customer[]>([]);
-  const [activeTab, setActiveTab] = useState<MasterType>(type);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [locationList, setLocationList] = useState<Location[]>([]);   // ← Day 40
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<Staff | Customer | Location | null>(null);
 
-  // 担当者フォーム
-  const [staffForm, setStaffForm] = useState({ name: '', email: '', phone: '', department: '', isActive: true });
-  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
-  const [showStaffForm, setShowStaffForm] = useState(false);
-
-  // 顧客フォーム
-  const [customerForm, setCustomerForm] = useState({ name: '', address: '', phone: '', email: '', note: '', isActive: true });
-  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
-  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [s, c, l] = await Promise.all([
+        staffApi.getAll(),
+        customerApi.getAll(),
+        locationApi.getAll(),   // ← Day 40
+      ]);
+      setStaffList(s);
+      setCustomerList(c);
+      setLocationList(l);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
-      setActiveTab(type);
       fetchAll();
+      setActiveTab(initialType);
+      setShowForm(false);
+      setEditingItem(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, initialType, fetchAll]);
 
-  const fetchAll = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const [staff, customers] = await Promise.all([
-        staffApi.getAll(),
-        customerApi.getAll(),
-      ]);
-      setStaffList(staff);
-      setCustomerList(customers);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '取得に失敗しました');
-    } finally {
-      setIsLoading(false);
+  const handleSaveStaff = async (data: Omit<Staff, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (editingItem) {
+      await staffApi.update(editingItem.id, data);
+    } else {
+      await staffApi.create(data);
     }
+    await fetchAll();
+    setShowForm(false);
+    setEditingItem(null);
   };
 
-  // ── 担当者 CRUD ──────────────────────────────────────
-  const handleStaffSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingStaffId) {
-        const updated = await staffApi.update(editingStaffId, staffForm);
-        setStaffList(prev => prev.map(s => s.id === editingStaffId ? updated : s));
-      } else {
-        const created = await staffApi.create(staffForm);
-        setStaffList(prev => [created, ...prev]);
-      }
-      resetStaffForm();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '操作に失敗しました');
+  const handleSaveCustomer = async (data: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (editingItem) {
+      await customerApi.update(editingItem.id, data);
+    } else {
+      await customerApi.create(data);
     }
+    await fetchAll();
+    setShowForm(false);
+    setEditingItem(null);
   };
 
-  const handleStaffEdit = (staff: Staff) => {
-    setEditingStaffId(staff.id);
-    setStaffForm({ name: staff.name, email: staff.email, phone: staff.phone ?? '', department: staff.department ?? '', isActive: staff.isActive });
-    setShowStaffForm(true);
-  };
-
-  const handleStaffDelete = async (id: string) => {
-    if (!confirm('この担当者を削除しますか？')) return;
-    try {
-      await staffApi.delete(id);
-      setStaffList(prev => prev.filter(s => s.id !== id));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '削除に失敗しました');
+  const handleSaveLocation = async (data: Omit<Location, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (editingItem) {
+      await locationApi.update(editingItem.id, data);
+    } else {
+      await locationApi.create(data);
     }
+    await fetchAll();
+    setShowForm(false);
+    setEditingItem(null);
   };
 
-  const handleStaffToggleActive = async (staff: Staff) => {
-    try {
-      const updated = await staffApi.update(staff.id, { isActive: !staff.isActive });
-      setStaffList(prev => prev.map(s => s.id === staff.id ? updated : s));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '更新に失敗しました');
-    }
-  };
-
-  const resetStaffForm = () => {
-    setStaffForm({ name: '', email: '', phone: '', department: '', isActive: true });
-    setEditingStaffId(null);
-    setShowStaffForm(false);
-  };
-
-  // ── 顧客 CRUD ────────────────────────────────────────
-  const handleCustomerSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingCustomerId) {
-        const updated = await customerApi.update(editingCustomerId, customerForm);
-        setCustomerList(prev => prev.map(c => c.id === editingCustomerId ? updated : c));
-      } else {
-        const created = await customerApi.create(customerForm);
-        setCustomerList(prev => [created, ...prev]);
-      }
-      resetCustomerForm();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '操作に失敗しました');
-    }
-  };
-
-  const handleCustomerEdit = (customer: Customer) => {
-    setEditingCustomerId(customer.id);
-    setCustomerForm({ name: customer.name, address: customer.address, phone: customer.phone ?? '', email: customer.email ?? '', note: customer.note ?? '', isActive: customer.isActive });
-    setShowCustomerForm(true);
-  };
-
-  const handleCustomerDelete = async (id: string) => {
-    if (!confirm('この顧客を削除しますか？')) return;
-    try {
-      await customerApi.delete(id);
-      setCustomerList(prev => prev.filter(c => c.id !== id));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '削除に失敗しました');
-    }
-  };
-
-  const handleCustomerToggleActive = async (customer: Customer) => {
-    try {
-      const updated = await customerApi.update(customer.id, { isActive: !customer.isActive });
-      setCustomerList(prev => prev.map(c => c.id === customer.id ? updated : c));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '更新に失敗しました');
-    }
-  };
-
-  const resetCustomerForm = () => {
-    setCustomerForm({ name: '', address: '', phone: '', email: '', note: '', isActive: true });
-    setEditingCustomerId(null);
-    setShowCustomerForm(false);
+  const handleDelete = async (id: string) => {
+    if (!confirm('削除しますか？')) return;
+    if (activeTab === 'staff') await staffApi.delete(id);
+    else if (activeTab === 'customer') await customerApi.delete(id);
+    else await locationApi.delete(id);
+    await fetchAll();
   };
 
   if (!isOpen) return null;
 
+  const tabs: { key: MasterType; label: string; icon: string }[] = [
+    { key: 'staff', label: '担当者', icon: '👤' },
+    { key: 'customer', label: '顧客', icon: '🏢' },
+    { key: 'location', label: '拠点', icon: '🏥' },  // ← Day 40
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="master-modal-title">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-3xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      role="dialog" aria-modal="true" aria-labelledby="master-modal-title">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-3xl max-h-[85vh] flex flex-col">
         {/* ヘッダー */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 id="master-modal-title" className="text-xl font-bold">マスタ管理</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg" aria-label="閉じる">
-            <X className="w-5 h-5" />
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 id="master-modal-title" className="text-lg font-bold flex items-center gap-2">
+            <Building2 className="w-5 h-5" />マスタ管理
+          </h2>
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="閉じる">
+            <X size={20} />
           </button>
         </div>
 
         {/* タブ */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700 px-6">
-          <button
-            onClick={() => setActiveTab('staff')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'staff' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-          >
-            <UserCheck className="w-4 h-4" />担当者
-          </button>
-          <button
-            onClick={() => setActiveTab('customer')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'customer' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-          >
-            <Users className="w-4 h-4" />顧客
-          </button>
+        <div className="flex border-b border-gray-200 dark:border-gray-700 px-4">
+          {tabs.map(tab => (
+            <button key={tab.key} onClick={() => { setActiveTab(tab.key); setShowForm(false); setEditingItem(null); }}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}>
+              <span className="mr-1">{tab.icon}</span>{tab.label}
+            </button>
+          ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          {error && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">{error}</div>}
-          {isLoading && <div className="text-center py-8 text-gray-500">読み込み中...</div>}
-
-          {/* ── 担当者タブ ─── */}
-          {activeTab === 'staff' && !isLoading && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">{staffList.length}件の担当者</span>
-                <button
-                  onClick={() => { resetStaffForm(); setShowStaffForm(true); }}
-                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                >
-                  <Plus className="w-4 h-4" />担当者を追加
+        {/* コンテンツ */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <>
+              {/* 追加ボタン */}
+              {isAdmin && !showForm && (
+                <button onClick={() => { setEditingItem(null); setShowForm(true); }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                  <Plus size={14} />新規追加
                 </button>
-              </div>
-
-              {showStaffForm && (
-                <form onSubmit={handleStaffSubmit} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-3">
-                  <h3 className="font-medium text-sm">{editingStaffId ? '担当者を編集' : '担当者を追加'}</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium mb-1">氏名 *</label>
-                      <input type="text" value={staffForm.name} onChange={e => setStaffForm(f => ({ ...f, name: e.target.value }))} required className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">メールアドレス *</label>
-                      <input type="email" value={staffForm.email} onChange={e => setStaffForm(f => ({ ...f, email: e.target.value }))} required className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">電話番号</label>
-                      <input type="tel" value={staffForm.phone} onChange={e => setStaffForm(f => ({ ...f, phone: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">部署</label>
-                      <input type="text" value={staffForm.department} onChange={e => setStaffForm(f => ({ ...f, department: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">保存</button>
-                    <button type="button" onClick={resetStaffForm} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm">キャンセル</button>
-                  </div>
-                </form>
               )}
 
-              <div className="space-y-2">
-                {staffList.length === 0 && <p className="text-center py-8 text-gray-500 text-sm">担当者が登録されていません</p>}
-                {staffList.map(staff => (
-                  <div key={staff.id} className={`flex items-center justify-between p-3 rounded-lg border ${staff.isActive ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600' : 'bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700 opacity-60'}`}>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{staff.name}</span>
-                        {!staff.isActive && <span className="text-xs bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">無効</span>}
-                        {staff.department && <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">{staff.department}</span>}
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{staff.email}{staff.phone && ` / ${staff.phone}`}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => handleStaffToggleActive(staff)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-500" title={staff.isActive ? '無効化' : '有効化'}>
-                        <UserCheck className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleStaffEdit(staff)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-blue-500" aria-label="編集">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleStaffDelete(staff.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-red-500" aria-label="削除">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── 顧客タブ ─── */}
-          {activeTab === 'customer' && !isLoading && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">{customerList.length}件の顧客</span>
-                <button
-                  onClick={() => { resetCustomerForm(); setShowCustomerForm(true); }}
-                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                >
-                  <Plus className="w-4 h-4" />顧客を追加
-                </button>
-              </div>
-
-              {showCustomerForm && (
-                <form onSubmit={handleCustomerSubmit} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-3">
-                  <h3 className="font-medium text-sm">{editingCustomerId ? '顧客を編集' : '顧客を追加'}</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium mb-1">氏名 *</label>
-                      <input type="text" value={customerForm.name} onChange={e => setCustomerForm(f => ({ ...f, name: e.target.value }))} required className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">電話番号</label>
-                      <input type="tel" value={customerForm.phone} onChange={e => setCustomerForm(f => ({ ...f, phone: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium mb-1">住所 *</label>
-                      <input type="text" value={customerForm.address} onChange={e => setCustomerForm(f => ({ ...f, address: e.target.value }))} required className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">メールアドレス</label>
-                      <input type="email" value={customerForm.email} onChange={e => setCustomerForm(f => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">備考</label>
-                      <input type="text" value={customerForm.note} onChange={e => setCustomerForm(f => ({ ...f, note: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">保存</button>
-                    <button type="button" onClick={resetCustomerForm} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm">キャンセル</button>
-                  </div>
-                </form>
+              {/* フォーム */}
+              {showForm && activeTab === 'staff' && (
+                <StaffForm
+                  initial={editingItem as Staff | undefined}
+                  onSave={handleSaveStaff}
+                  onCancel={() => { setShowForm(false); setEditingItem(null); }}
+                />
+              )}
+              {showForm && activeTab === 'customer' && (
+                <CustomerForm
+                  initial={editingItem as Customer | undefined}
+                  onSave={handleSaveCustomer}
+                  onCancel={() => { setShowForm(false); setEditingItem(null); }}
+                />
+              )}
+              {showForm && activeTab === 'location' && (
+                <LocationForm
+                  initial={editingItem as Location | undefined}
+                  onSave={handleSaveLocation}
+                  onCancel={() => { setShowForm(false); setEditingItem(null); }}
+                />
               )}
 
-              <div className="space-y-2">
-                {customerList.length === 0 && <p className="text-center py-8 text-gray-500 text-sm">顧客が登録されていません</p>}
-                {customerList.map(customer => (
-                  <div key={customer.id} className={`flex items-center justify-between p-3 rounded-lg border ${customer.isActive ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600' : 'bg-gray-50 dark:bg-gray-800 border-gray-100 dark:border-gray-700 opacity-60'}`}>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{customer.name}</span>
-                        {!customer.isActive && <span className="text-xs bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">無効</span>}
+              {/* スタッフリスト */}
+              {activeTab === 'staff' && (
+                <div className="space-y-2">
+                  {staffList.length === 0 && <p className="text-sm text-gray-500 py-4 text-center">担当者がいません</p>}
+                  {staffList.map(s => (
+                    <div key={s.id} className={`flex items-center justify-between p-3 rounded-lg border ${s.isActive ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900' : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 opacity-60'}`}>
+                      <div>
+                        <div className="font-medium text-sm">{s.name} {!s.isActive && <span className="text-xs text-gray-400">(無効)</span>}</div>
+                        <div className="text-xs text-gray-500">{s.email}{s.department && ` ・ ${s.department}`}</div>
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{customer.address}</p>
-                      {(customer.phone || customer.email) && <p className="text-xs text-gray-400 dark:text-gray-500">{[customer.phone, customer.email].filter(Boolean).join(' / ')}</p>}
+                      {isAdmin && (
+                        <div className="flex gap-2">
+                          <button onClick={() => { setEditingItem(s); setShowForm(true); }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" aria-label="編集">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => handleDelete(s.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" aria-label="削除">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => handleCustomerToggleActive(customer)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-500" title={customer.isActive ? '無効化' : '有効化'}>
-                        <Users className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleCustomerEdit(customer)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-blue-500" aria-label="編集">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleCustomerDelete(customer.id)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600 text-red-500" aria-label="削除">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                  ))}
+                </div>
+              )}
+
+              {/* 顧客リスト */}
+              {activeTab === 'customer' && (
+                <div className="space-y-2">
+                  {customerList.length === 0 && <p className="text-sm text-gray-500 py-4 text-center">顧客がいません</p>}
+                  {customerList.map(c => (
+                    <div key={c.id} className={`flex items-center justify-between p-3 rounded-lg border ${c.isActive ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900' : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 opacity-60'}`}>
+                      <div>
+                        <div className="font-medium text-sm">{c.name} {!c.isActive && <span className="text-xs text-gray-400">(無効)</span>}</div>
+                        <div className="text-xs text-gray-500">{c.address}{c.phone && ` ・ ${c.phone}`}</div>
+                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-2">
+                          <button onClick={() => { setEditingItem(c); setShowForm(true); }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" aria-label="編集">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => handleDelete(c.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" aria-label="削除">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 拠点リスト（Day 40新規） */}
+              {activeTab === 'location' && (
+                <div className="space-y-2">
+                  {locationList.length === 0 && <p className="text-sm text-gray-500 py-4 text-center">拠点がいません。追加してください。</p>}
+                  {locationList.map(l => (
+                    <div key={l.id} className={`flex items-center justify-between p-3 rounded-lg border ${l.isActive ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900' : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 opacity-60'}`}>
+                      <div className="flex items-center gap-2">
+                        <Building2 size={16} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                        <div>
+                          <div className="font-medium text-sm">{l.name} {!l.isActive && <span className="text-xs text-gray-400">(無効)</span>}</div>
+                          <div className="text-xs text-gray-500">{l.address}{l.phone && ` ・ ${l.phone}`}</div>
+                        </div>
+                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-2">
+                          <button onClick={() => { setEditingItem(l); setShowForm(true); }}
+                            className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" aria-label="編集">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => handleDelete(l.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" aria-label="削除">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
