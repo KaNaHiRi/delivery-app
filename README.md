@@ -1,141 +1,220 @@
-# 配送管理システム
+# 🚚 配送管理システム（Delivery Management System）
 
-Next.js 16 (App Router) + TypeScript で構築した、フル機能の配送管理Webアプリケーションです。
+> **医療・クリニック向け** 配送・物品管理Webアプリケーション  
+> Next.js 15 + TypeScript + Prisma + SQLite で構築したフルスタックシステム
 
-[![CI](https://github.com/KaNaHiRi/delivery-app/actions/workflows/ci.yml/badge.svg)](https://github.com/KaNaHiRi/delivery-app/actions/workflows/ci.yml)
-[![Deploy](https://github.com/KaNaHiRi/delivery-app/actions/workflows/deploy.yml/badge.svg)](https://github.com/KaNaHiRi/delivery-app/actions/workflows/deploy.yml)
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3-38bdf8)
-![License](https://img.shields.io/badge/license-MIT-green)
+[![CI/CD](https://github.com/KaNaHiRi/delivery-app/actions/workflows/ci.yml/badge.svg)](https://github.com/KaNaHiRi/delivery-app/actions)
+[![Deploy](https://img.shields.io/badge/deploy-vercel-black?logo=vercel)](https://delivery-app-delta-ecru.vercel.app)
+[![Tests](https://img.shields.io/badge/tests-74%20passed-brightgreen)](#テスト)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/)
 
 ## 🌐 デモ
 
-**デプロイURL**: [https://delivery-app-delta-ecru.vercel.app](https://delivery-app-delta-ecru.vercel.app)
+**デモURL**: https://delivery-app-delta-ecru.vercel.app
 
-| ロール | メールアドレス | パスワード | 権限 |
-|--------|--------------|-----------|------|
+| アカウント | メール | パスワード | 権限 |
+|-----------|--------|-----------|------|
 | 管理者 | admin@clinic.com | admin123 | 全操作可 |
-| 一般ユーザー | tanaka@clinic.com | user123 | 閲覧・ステータス変更・印刷・エクスポートのみ |
+| 一般ユーザー | tanaka@clinic.com | user123 | 閲覧・ステータス変更 |
 
-## 📋 プロジェクト概要
+---
 
-Next.js/TypeScriptの学習を目的とした60日間の学習計画の一環として開発。  
-実務で使えるプロフェッショナルな実装を重視し、CRUD操作からデータ分析、認証・認可、E2Eテスト、CI/CDまで、実際の業務システムに必要な機能を網羅しています。
+## 📸 スクリーンショット
 
-- **目的**: Next.js/TypeScriptを習得してフリーランスフロントエンド開発者へ転身
-- **期間**: 60日計画（現在32日目完了）
-- **開発者**: 医療システム部門でシステム開発を担当（C#/Delphi経験10年以上）
+> ※ デモサイトにてご確認ください
 
-## ✨ 実装済み機能（Day 1〜32）
+- ダッシュボード（統計・グラフ表示）
+- 配送一覧（ソート・フィルター・仮想スクロール）
+- メール通知機能
+- PDF帳票出力
 
-| Day | 機能 |
-|-----|------|
-| 1-3 | CRUD基本機能（追加・編集・削除・一覧表示） |
-| 4-5 | 検索・フィルター・ソート |
-| 6-7 | ページネーション・一括操作 |
-| 8 | CSV出力（全件/フィルター済み/選択） |
-| 9 | CSVインポート（バリデーション・プレビュー） |
-| 10 | 統計ダッシュボード（recharts） |
-| 11 | ダークモード |
-| 12 | 印刷機能・PDF出力 |
-| 13 | バックアップ/リストア |
-| 14 | 通知機能（Notification API） |
-| 15 | データ可視化強化 |
-| 16 | Excelエクスポート |
-| 17 | カスタム期間選択 |
-| 18 | 高度なフィルター・プリセット |
-| 19 | パフォーマンス最適化（useMemo/useCallback/React.memo） |
-| 20 | テスト・アクセシビリティ（WCAG 2.1 AA）・SEO |
-| 21 | エラーハンドリング・PWA対応 |
-| 22 | 国際化（next-intl・日本語/英語） |
-| 23 | 自動更新（ポーリング）・ドラッグ＆ドロップ並び替え |
-| 24 | ユーザー認証（NextAuth.js v5） |
-| 25 | ロール別アクセス制御（RBAC） |
-| 26 | API Routes・サーバーサイドデータ永続化 |
-| 27 | 仮想スクロール（@tanstack/react-virtual） |
-| 28 | キーボードショートカット |
-| 29 | 単体テスト強化（Jest 64件） |
-| 30 | Storybook 10（コンポーネントドキュメント） |
-| 31 | E2Eテスト（Playwright 12件） |
-| 32 | CI/CDパイプライン（GitHub Actions） |
+---
+
+## ✨ 主な機能
+
+### 📊 コア機能
+- **配送データ管理** — 登録・編集・削除・ステータス管理（未処理→配送中→完了）
+- **高度な検索・フィルター** — キーワード・ステータス・日付範囲・拠点別フィルター
+- **クイックフィルター** — 「今日」「今週」「期限超過」などワンクリック絞り込み
+- **フィルタープリセット** — よく使う条件を保存・再利用
+
+### 📈 分析・レポート
+- **ダッシュボード** — recharts によるリアルタイム統計グラフ
+- **カスタムダッシュボード** — ウィジェットのON/OFF・並び順変更
+- **PDF帳票出力** — jsPDF + html2canvas による配送票・レポート生成
+- **Excel/CSVエクスポート** — データ一括出力
+
+### 🔒 セキュリティ・認証
+- **NextAuth.js v5** による認証
+- **RBAC（ロールベースアクセス制御）** — 管理者 / 一般ユーザー 2段階権限
+- **操作履歴** — 全変更操作をAuditLogとして記録
+- **Sentry** によるエラー監視
+
+### 📧 通知機能
+- **ブラウザ通知** — 期限アラート・ステータス変更通知
+- **メール通知** — Resend + React Email による配送状況メール
+- **PWA対応** — スマートフォンへのインストール・オフライン表示
+
+### 🌏 その他
+- **国際化（i18n）** — 日本語 / 英語 切り替え（next-intl）
+- **ダークモード** — ライト/ダーク テーマ対応
+- **仮想スクロール** — 大量データでも高速表示（@tanstack/react-virtual）
+- **複数拠点対応** — 拠点ごとのデータ管理
+- **自動更新** — 5秒〜1分間隔の自動データリフレッシュ
+- **D&Dソート** — ドラッグ&ドロップで表示順変更
+
+---
 
 ## 🛠️ 技術スタック
 
-- **Framework**: Next.js 16 (App Router, Turbopack)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS v3
-- **Auth**: NextAuth.js v5 (Credentials + JWT)
-- **Charts**: recharts
-- **Virtual Scroll**: @tanstack/react-virtual
-- **i18n**: next-intl
-- **Unit Test**: Jest + React Testing Library（64件）
-- **E2E Test**: Playwright（12件）
-- **Component Docs**: Storybook 10
-- **CI/CD**: GitHub Actions
-- **Hosting**: Vercel
+### フロントエンド
+| 技術 | バージョン | 用途 |
+|------|-----------|------|
+| Next.js | 15.1.5 | フレームワーク（App Router + Turbopack） |
+| TypeScript | 5.x | 型安全な開発 |
+| Tailwind CSS | v3 | スタイリング |
+| recharts | latest | グラフ・チャート |
+| @tanstack/react-virtual | latest | 仮想スクロール |
 
-## 🚀 セットアップ
+### バックエンド・DB
+| 技術 | バージョン | 用途 |
+|------|-----------|------|
+| Prisma | v6 | ORM |
+| SQLite | — | データベース（本番はPostgreSQL推奨） |
+| NextAuth.js | v5 beta | 認証 |
+| Zod | v4 | バリデーション |
+
+### インフラ・ツール
+| 技術 | 用途 |
+|------|------|
+| Vercel | ホスティング・自動デプロイ |
+| GitHub Actions | CI/CD パイプライン |
+| Sentry | エラー監視 |
+| Resend | メール送信 |
+
+### テスト
+| 技術 | 用途 |
+|------|------|
+| Jest + React Testing Library | 単体テスト（74件） |
+| Playwright | E2Eテスト（12件） |
+| Storybook | UIコンポーネントカタログ |
+
+---
+
+## 🚀 ローカル起動手順
+
+### 前提条件
+- Node.js 18以上
+- npm または yarn
+
+### インストール
 ```bash
+# リポジトリのクローン
 git clone https://github.com/KaNaHiRi/delivery-app.git
 cd delivery-app
+
+# 依存関係インストール
 npm install
+
+# 環境変数の設定
+cp .env.example .env.local
+# .env.local を編集してください（後述）
+
+# DBのセットアップ
+npx prisma migrate dev
+npx prisma db seed
+
+# 開発サーバー起動
 npm run dev
 ```
 
-ブラウザで [http://localhost:3000](http://localhost:3000) を開いてください。
+ブラウザで http://localhost:3000 を開く
 
-## 🧪 テスト実行
+### 環境変数（.env.local）
+```env
+# データベース
+DATABASE_URL=file:./prisma/dev.db
+
+# 認証（openssl rand -base64 32 で生成）
+AUTH_SECRET=your-secret-here
+
+# Sentry（省略可）
+NEXT_PUBLIC_SENTRY_DSN=
+SENTRY_AUTH_TOKEN=
+
+# メール送信（Resend）
+RESEND_API_KEY=re_xxxxxxxxxx
+EMAIL_FROM=onboarding@resend.dev
+```
+
+---
+
+## 🧪 テスト
 ```bash
-# 単体テスト（64件）
+# 単体テスト（74件）
 npm test
 
-# E2Eテスト（12件）
-npm run e2e
+# E2Eテスト（Playwright）
+npx playwright test
 
 # Storybook
 npm run storybook
 ```
 
-## ⌨️ キーボードショートカット
+---
 
-| キー | 動作 |
-|------|------|
-| `N` | 新規登録モーダルを開く（管理者のみ） |
-| `/` | 検索ボックスにフォーカス |
-| `V` | 仮想スクロール切り替え |
-| `R` | データを再取得 |
-| `?` | ショートカット一覧を表示 |
-| `Esc` | モーダルを閉じる / フィルターをクリア |
-
-## 📂 プロジェクト構造
+## 📁 プロジェクト構成
 ```
 my-delivery-app/
-├── app/                    # Next.js App Router
-│   ├── api/deliveries/     # API Routes
-│   ├── components/         # UIコンポーネント
-│   ├── hooks/              # カスタムフック
-│   ├── types/              # 型定義
-│   └── utils/              # ユーティリティ
-├── lib/                    # サーバーサイドロジック
-├── e2e/                    # Playwright E2Eテスト
-├── .github/workflows/      # GitHub Actions CI/CD
-├── .storybook/             # Storybook設定
-├── messages/               # i18n翻訳ファイル
-└── data/                   # サーバーサイドデータ永続化
+├── app/
+│   ├── api/          # API Routes（RESTful）
+│   ├── components/   # 25+ UIコンポーネント
+│   ├── hooks/        # カスタムHooks
+│   ├── types/        # TypeScript型定義
+│   ├── utils/        # ユーティリティ関数
+│   └── page.tsx      # メインページ
+├── lib/              # DB・API クライアント
+├── prisma/           # スキーマ・マイグレーション
+├── e2e/              # Playwright テスト
+└── docs/             # 詳細ドキュメント
 ```
 
-## 👨‍💻 開発者
-
-**KaNaHiRi**
-- 医療システム部門 / C#・Delphi・VBA　経験10年以上
-- 目標: Next.js/TypeScriptを習得してフリーランスフロントエンド開発者へ転身
-- GitHub: [@KaNaHiRi](https://github.com/KaNaHiRi)
-
-## 📝 ライセンス
-
-MIT License
+詳細は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照
 
 ---
 
-**Last Updated**: 2026-02-23 / **Version**: 1.0.0 (Day 32完了)
+## 📖 ドキュメント
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | システム設計・データフロー |
+| [API.md](docs/API.md) | API エンドポイント仕様 |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | 本番デプロイ手順 |
+
+---
+
+## 🏥 医療システムへの応用
+
+このシステムは配送管理を例に構築していますが、以下の用途に転用可能です：
+
+- **クリニック向け** 患者呼び出し・検査フロー管理
+- **調剤薬局向け** 薬品在庫・処方管理
+- **訪問医療向け** 訪問スケジュール・担当者管理
+
+業務システム開発のご相談は [CrowdWorks](https://crowdworks.jp) / [Coconala](https://coconala.com) にてご依頼ください。
+
+---
+
+## 📝 ライセンス
+
+MIT License — 自由にご利用いただけます
+
+---
+
+## 👤 開発者
+
+**KAZU**  
+医療システム部門 10年以上の経験を持つフルスタックエンジニア  
+C# / Delphi / WPF → Next.js / TypeScript にシフト中
+
+[![CrowdWorks](https://img.shields.io/badge/CrowdWorks-受注中-orange)](https://crowdworks.jp/public/employees/6351824?ref=login_header)

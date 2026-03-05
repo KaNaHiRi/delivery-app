@@ -547,7 +547,7 @@ export default function Home() {
                   {roleBadge.label}
                 </span>
               )}
-              <span className="text-sm text-gray-500 dark:text-gray-400">Day 42: リファクタリング</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Day 43: ドキュメント整備</span>
             </div>
             <div className="flex items-center gap-2">
               {permissions.canViewAnalytics && (
