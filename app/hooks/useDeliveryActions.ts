@@ -19,6 +19,12 @@ interface UseDeliveryActionsProps {
   confirmFn?: (msg: string) => boolean;
 }
 
+// ↓ デフォルト引数をファイルスコープで定義（window直参照を避ける）
+const defaultConfirm = (msg: string): boolean => {
+  if (typeof window === 'undefined') return false;
+  return window.confirm(msg);
+};
+
 export function useDeliveryActions({
   deliveries,
   selectedIds,
@@ -29,7 +35,7 @@ export function useDeliveryActions({
   setIsGenerating,
   setIsPrintPreview,
   setPrintDeliveryIds,
-  confirmFn = window.confirm,
+  confirmFn = defaultConfirm, 
 }: UseDeliveryActionsProps) {
 
   // 単体削除

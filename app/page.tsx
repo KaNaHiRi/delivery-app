@@ -53,6 +53,7 @@ import { deliveryApi } from '@/lib/deliveryApi';
 import { staffApi, customerApi, locationApi } from '@/lib/masterApi';
 import { createDeliverySchema } from './utils/validation';
 import type { FormData } from './types/delivery';
+import DemoBanner from './components/DemoBanner';
 
 // ─────────────────────────────────────────
 // サブコンポーネント（ファイル分割候補）
@@ -399,6 +400,17 @@ export default function Home() {
     saveDashboardConfig(widgets, layout);
   }, []);
 
+  // ── デモリセット ──
+  const handleDemoReset = useCallback(async () => {
+    const res = await fetch('/api/demo/reset', { method: 'POST' });
+    if (!res.ok) throw new Error('リセット失敗');
+    await fetchDeliveries();
+    await staffApi.getAll().then(setStaffList);
+    await customerApi.getAll().then(setCustomerList);
+    await locationApi.getAll().then(setLocationList);
+  }, [fetchDeliveries]);
+
+
   // ─────────────────────────────────────────
   // キーボードショートカット
   // ─────────────────────────────────────────
@@ -547,7 +559,7 @@ export default function Home() {
                   {roleBadge.label}
                 </span>
               )}
-              <span className="text-sm text-gray-500 dark:text-gray-400">Day 43: ドキュメント整備</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Day 44: デモ環境整備</span>
             </div>
             <div className="flex items-center gap-2">
               {permissions.canViewAnalytics && (
@@ -591,6 +603,7 @@ export default function Home() {
       {/* メインコンテンツ */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
         <DashboardStats deliveries={deliveries} widgets={dashboardWidgets} layout={dashboardLayout} />
+        <DemoBanner isAdmin={role === 'admin'} onResetDemo={handleDemoReset} />
         <RoleBanner role={role} />
         <AutoRefreshBar onRefresh={fetchDeliveries} />
 
