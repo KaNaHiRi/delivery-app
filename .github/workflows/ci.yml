@@ -105,6 +105,12 @@ jobs:
         run: npx prisma migrate deploy
       - name: Seed database
         run: npx prisma db seed
+        env:
+          DATABASE_URL: file:./prisma/dev.db
+      - name: Verify seed data
+        run: node -e "const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.delivery.count().then(c=>{console.log('Delivery count:',c);if(c===0)process.exit(1);}).finally(()=>p.\$disconnect());"
+        env:
+          DATABASE_URL: file:./prisma/dev.db
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
       - name: Run E2E tests
