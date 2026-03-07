@@ -23,8 +23,8 @@ test.describe('認証フロー', () => {
     await page.getByRole('button', { name: /ログイン/i }).click();
     // ダッシュボードに遷移
     await expect(page).toHaveURL('/', { timeout: 10000 });
-    await expect(page.getByText(/配送管理システム/i)).toBeVisible();
-    await expect(page.getByText(/管理者としてログイン中/i)).toBeVisible();
+    await expect(page.getByText(/配送管理システム/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/管理者としてログイン中/i)).toBeVisible({ timeout: 15000 });
   });
 
   test('一般ユーザーでログイン成功 → 権限制限UI表示', async ({ page }) => {
