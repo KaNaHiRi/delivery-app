@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Plus, Search, Download, Upload, Save, Bell, BarChart3,
-  Filter, X, Bookmark, RefreshCw, Play, Pause, ShieldCheck, ShieldAlert,
-  Loader2, FileText, Keyboard, BookUser, Settings, AtSign, History,
+  Filter, X, Bookmark,
+  FileText, Keyboard, BookUser, Settings, AtSign, History,
 } from 'lucide-react';
 
 import type { Delivery, NotificationSettings, PeriodSelection } from './types/delivery';
@@ -12,7 +12,7 @@ import type { MasterType } from './types/master';
 import type { Staff, Customer, Location } from './types/master';
 import type { WidgetConfig, DashboardLayout } from './types/delivery';
 
-import { EMPTY_FORM, REFRESH_INTERVALS, STATUS_COLORS, DEFAULT_ITEMS_PER_PAGE } from './constants/delivery';
+import { EMPTY_FORM, STATUS_COLORS, DEFAULT_ITEMS_PER_PAGE } from './constants/delivery';
 
 import CsvExportModal from './components/CsvExportModal';
 import CsvImportModal from './components/CsvImportModal';
@@ -34,92 +34,30 @@ import DashboardCustomizeModal from './components/DashboardCustomizeModal';
 import ReportModal from './components/ReportModal';
 import EmailNotificationModal from './components/EmailNotificationModal';
 import HistoryModal from './components/HistoryModal';
+import AutoRefreshBar from './components/AutoRefreshBar';
+import RoleBanner from './components/RoleBanner';
+import LoadingSpinner from './components/LoadingSpinner';
 
 import { getPermissions } from './utils/permissions';
 import { usePerformanceMonitor } from './utils/performance';
-import { hasActiveFilters, formatFilterDescription, clearFilterCache, createEmptyFilters } from './utils/filters';
+import { hasActiveFilters, formatFilterDescription, clearFilterCache } from './utils/filters';
 import { DEFAULT_WIDGETS, DEFAULT_LAYOUT, loadDashboardConfig, saveDashboardConfig } from './utils/dashboard';
 
 import { useTranslations } from 'next-intl';
-import { useInterval } from './hooks/useInterval';
 import { useRole } from './hooks/useRole';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useFormValidation } from './hooks/useFormValidation';
 import { useDeliveryActions } from './hooks/useDeliveryActions';
 import { useModalState } from './hooks/useModalState';
 import { useFilterState } from './hooks/useFilterState';
+import { useSortState } from './hooks/useSortState';
+import { usePaginationState } from './hooks/usePaginationState';
 
 import { deliveryApi } from '@/lib/deliveryApi';
 import { staffApi, customerApi, locationApi } from '@/lib/masterApi';
 import { createDeliverySchema } from './utils/validation';
 import type { FormData } from './types/delivery';
 import DemoBanner from './components/DemoBanner';
-
-// ─────────────────────────────────────────
-// サブコンポーネント（ファイル分割候補）
-// ─────────────────────────────────────────
-
-function AutoRefreshBar({ onRefresh }: { onRefresh: () => void }) {
-  const [enabled, setEnabled] = useState(false);
-  const [interval, setIntervalValue] = useState(30000);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-
-  const handleRefresh = useCallback(() => {
-    onRefresh();
-    setLastRefreshed(new Date());
-  }, [onRefresh]);
-
-  useInterval(handleRefresh, enabled ? interval : null);
-
-  const formatTime = (date: Date) =>
-    date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm mb-6" role="region" aria-label="自動更新設定">
-      <button onClick={handleRefresh} className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors" aria-label="今すぐ更新">
-        <RefreshCw size={14} className={enabled ? 'animate-spin' : ''} />
-        <span>更新</span>
-      </button>
-      <select value={interval} onChange={e => setIntervalValue(Number(e.target.value))} className="px-2 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="更新間隔">
-        {REFRESH_INTERVALS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}ごと</option>)}
-      </select>
-      <button onClick={() => setEnabled(prev => !prev)} className={`flex items-center gap-1 px-3 py-1 rounded transition-colors ${enabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'}`} aria-pressed={enabled} aria-label={enabled ? '自動更新を停止' : '自動更新を開始'}>
-        {enabled ? <Pause size={14} /> : <Play size={14} />}
-        <span>{enabled ? '自動更新中' : '自動更新'}</span>
-      </button>
-      {lastRefreshed && <span className="text-gray-500 dark:text-gray-400 text-xs">最終更新: {formatTime(lastRefreshed)}</span>}
-    </div>
-  );
-}
-
-function RoleBanner({ role }: { role: string | undefined }) {
-  if (role === 'admin') {
-    return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg text-sm mb-6" role="status" aria-label="ロール情報">
-        <ShieldCheck size={16} className="text-purple-600 dark:text-purple-400" aria-hidden="true" />
-        <span className="text-purple-700 dark:text-purple-300 font-medium">管理者としてログイン中 — 全ての操作が可能です</span>
-      </div>
-    );
-  }
-  if (role === 'user') {
-    return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm mb-6" role="status" aria-label="ロール情報">
-        <ShieldAlert size={16} className="text-amber-600 dark:text-amber-400" aria-hidden="true" />
-        <span className="text-amber-700 dark:text-amber-300">一般ユーザーとしてログイン中 — <strong className="ml-1">閲覧・ステータス変更・印刷・エクスポート</strong>が可能です。追加・編集・削除は管理者にお問い合わせください。</span>
-      </div>
-    );
-  }
-  return null;
-}
-
-function LoadingSpinner() {
-  return (
-    <div className="flex items-center justify-center py-12" role="status" aria-label="読み込み中">
-      <Loader2 className="w-8 h-8 animate-spin text-blue-600" aria-hidden="true" />
-      <span className="ml-3 text-gray-600 dark:text-gray-400">データを読み込み中...</span>
-    </div>
-  );
-}
 
 // ─────────────────────────────────────────
 // メインコンポーネント
@@ -139,12 +77,11 @@ export default function Home() {
   const [locale, setLocale] = useState('ja');
   const [isGenerating, setIsGenerating] = useState(false);
   const [useVirtualScroll, setUseVirtualScroll] = useState(false);
-
-  // ── ソート・ページネーション ──
-  const [sortKey, setSortKey] = useState<keyof Delivery>('deliveryDate');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // ── ソート・ページネーション（カスタムHook化）──
+  const { sortKey, sortOrder, handleSort, sort } = useSortState<Delivery>('deliveryDate');
+  const { currentPage, setCurrentPage, paginate, totalPages: calcTotalPages } = usePaginationState(DEFAULT_ITEMS_PER_PAGE);
 
   // ── 印刷 ──
   const [isPrintPreview, setIsPrintPreview] = useState(false);
@@ -195,7 +132,7 @@ export default function Home() {
     searchTerm, setSearchTerm,
     statusFilter, setStatusFilter,
     selectedLocationId, setSelectedLocationId,
-    advancedFilters, setAdvancedFilters,
+    advancedFilters,
     filterPresets,
     activeQuickFilter,
     filteredDeliveries,
@@ -298,23 +235,10 @@ export default function Home() {
   }, [permissions.canCreate, openModal]);
 
   // ─────────────────────────────────────────
-  // ソート・選択
+  // ソート済み・ページネーション済みデータ
   // ─────────────────────────────────────────
 
-  const handleSort = useCallback((key: keyof Delivery) => {
-    if (sortKey === key) setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-    else { setSortKey(key); setSortOrder('asc'); }
-  }, [sortKey]);
-
-  const sortedDeliveries = useMemo(() => (
-    [...filteredDeliveries].sort((a, b) => {
-      const av = a[sortKey] ?? '';
-      const bv = b[sortKey] ?? '';
-      if (av < bv) return sortOrder === 'asc' ? -1 : 1;
-      if (av > bv) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    })
-  ), [filteredDeliveries, sortKey, sortOrder]);
+  const sortedDeliveries = useMemo(() => sort(filteredDeliveries), [filteredDeliveries, sort]);
 
   const orderedFilteredDeliveries = useMemo(() => {
     if (orderedIds.length === 0) return sortedDeliveries;
@@ -324,16 +248,16 @@ export default function Home() {
     return [...ordered, ...sortedDeliveries.filter(d => !orderedIdSet.has(d.id))];
   }, [sortedDeliveries, orderedIds]);
 
-  const paginatedDeliveries = useMemo(() => (
-    orderedFilteredDeliveries.slice(
-      (currentPage - 1) * DEFAULT_ITEMS_PER_PAGE,
-      currentPage * DEFAULT_ITEMS_PER_PAGE
-    )
-  ), [orderedFilteredDeliveries, currentPage]);
+  const paginatedDeliveries = useMemo(
+    () => paginate(orderedFilteredDeliveries),
+    [orderedFilteredDeliveries, paginate]
+  );
 
-  const totalPages = useMemo(() => (
-    Math.ceil(orderedFilteredDeliveries.length / DEFAULT_ITEMS_PER_PAGE)
-  ), [orderedFilteredDeliveries.length]);
+  const totalPages = calcTotalPages(orderedFilteredDeliveries.length);
+
+  // ─────────────────────────────────────────
+  // 選択
+  // ─────────────────────────────────────────
 
   const isAllSelected = useMemo(() => (
     paginatedDeliveries.length > 0 && paginatedDeliveries.every(d => selectedIds.has(d.id))
@@ -400,7 +324,6 @@ export default function Home() {
     saveDashboardConfig(widgets, layout);
   }, []);
 
-  // ── デモリセット ──
   const handleDemoReset = useCallback(async () => {
     const res = await fetch('/api/demo/reset', { method: 'POST' });
     if (!res.ok) throw new Error('リセット失敗');
@@ -409,7 +332,6 @@ export default function Home() {
     await customerApi.getAll().then(setCustomerList);
     await locationApi.getAll().then(setLocationList);
   }, [fetchDeliveries]);
-
 
   // ─────────────────────────────────────────
   // キーボードショートカット
@@ -537,9 +459,9 @@ export default function Home() {
   ];
 
   const roleBadge = role === 'admin'
-    ? { label: '👑 管理者', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' }
+    ? { label: `👑 ${tCommon('roleAdmin')}`, className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' }
     : role === 'user'
-    ? { label: '👤 一般ユーザー', className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }
+    ? { label: `👤 ${tCommon('roleUser')}`, className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }
     : null;
 
   // ─────────────────────────────────────────
@@ -548,7 +470,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
-      {/* ヘッダー */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700" role="banner">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
@@ -559,31 +480,31 @@ export default function Home() {
                   {roleBadge.label}
                 </span>
               )}
-              <span className="text-sm text-gray-500 dark:text-gray-400">Day 44: デモ環境整備</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">Day 57: リファクタリング</span>
             </div>
             <div className="flex items-center gap-2">
               {permissions.canViewAnalytics && (
                 <>
                   <button onClick={() => openModal('analytics')} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2" aria-label="分析モーダルを開く">
-                    <BarChart3 className="w-4 h-4" /><span>{tCommon('analytics') ?? 'Analytics'}</span>
+                    <BarChart3 className="w-4 h-4" /><span>{tCommon('analytics')}</span>
                   </button>
                   <button onClick={() => openModal('report')} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2" aria-label="レポートを生成">
-                    <FileText className="w-4 h-4" /><span>レポート</span>
+                    <FileText className="w-4 h-4" /><span>{tCommon('report')}</span>
                   </button>
                   <button onClick={() => openModal('email')} className="px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 flex items-center gap-2" aria-label="メール通知を送信">
-                    <AtSign className="w-4 h-4" /><span>メール</span>
+                    <AtSign className="w-4 h-4" /><span>{tCommon('email')}</span>
                   </button>
                   <button onClick={() => openModal('history')} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 flex items-center gap-2" aria-label="操作履歴を表示">
-                    <History className="w-4 h-4" /><span>履歴</span>
+                    <History className="w-4 h-4" /><span>{tCommon('history')}</span>
                   </button>
                 </>
               )}
               <button onClick={() => openModal('dashboardCustomize')} className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center gap-2 text-sm border border-gray-300 dark:border-gray-600" aria-label="ダッシュボードをカスタマイズ">
-                <Settings className="w-4 h-4" />カスタマイズ
+                <Settings className="w-4 h-4" />{tCommon('customize')}
               </button>
               {permissions.canCreate && (
                 <button onClick={() => { setMasterModalType('staff'); openModal('master'); }} className="px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 text-sm" aria-label="マスタ管理を開く">
-                  <BookUser className="w-4 h-4" />マスタ
+                  <BookUser className="w-4 h-4" />{tCommon('master')}
                 </button>
               )}
               <button onClick={() => openModal('notification')} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="通知設定を開く">
@@ -600,14 +521,12 @@ export default function Home() {
         </div>
       </header>
 
-      {/* メインコンテンツ */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
         <DashboardStats deliveries={deliveries} widgets={dashboardWidgets} layout={dashboardLayout} />
         <DemoBanner isAdmin={role === 'admin'} onResetDemo={handleDemoReset} />
         <RoleBanner role={role} />
         <AutoRefreshBar onRefresh={fetchDeliveries} />
 
-        {/* APIエラー */}
         {apiError && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg" role="alert">
             <div className="flex items-center justify-between">
@@ -617,7 +536,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* クイックフィルター */}
         <div className="mb-6" role="group" aria-label="クイックフィルター">
           <div className="flex flex-wrap gap-2">
             {quickFilters.map(filter => (
@@ -633,7 +551,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* アクティブフィルター表示 */}
         {isFiltersActive && (
           <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800" role="status" aria-live="polite">
             <div className="flex items-center justify-between">
@@ -658,10 +575,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* 検索・フィルターバー */}
         <div className="mb-6 space-y-4">
           <div className="flex flex-wrap gap-4">
-            {/* 検索 */}
             <div className="flex-1 min-w-[200px]">
               <label htmlFor="search-input" className="sr-only">配送データを検索</label>
               <div className="relative">
@@ -677,33 +592,18 @@ export default function Home() {
                 />
               </div>
             </div>
-
-            {/* ステータスフィルター */}
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
-              aria-label="ステータスでフィルター"
-            >
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" aria-label="ステータスでフィルター">
               <option value="all">{tFilter('allStatus')}</option>
               <option value="pending">{tStatus('pending')}</option>
               <option value="in_transit">{tStatus('in_transit')}</option>
               <option value="completed">{tStatus('completed')}</option>
             </select>
-
-            {/* 拠点フィルター */}
-            <select
-              value={selectedLocationId}
-              onChange={e => { setSelectedLocationId(e.target.value); setCurrentPage(1); }}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
-              aria-label="拠点でフィルター"
-            >
+            <select value={selectedLocationId} onChange={e => { setSelectedLocationId(e.target.value); setCurrentPage(1); }} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500" aria-label="拠点でフィルター">
               <option value="">全拠点</option>
               {locationList.filter(l => l.isActive).map(l => (
                 <option key={l.id} value={l.id}>{l.name}</option>
               ))}
             </select>
-
             <button onClick={() => openModal('advancedFilter')} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2">
               <Filter className="w-4 h-4" />{tCommon('filter')}
             </button>
@@ -717,7 +617,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* 操作ボタン群 */}
           <div className="flex flex-wrap gap-2" role="group" aria-label="データ操作">
             {permissions.canExportCsv && (
               <button onClick={() => openModal('export')} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
@@ -742,11 +641,7 @@ export default function Home() {
               {useVirtualScroll ? '📜 仮想OFF' : '⚡ 仮想ON'}
             </button>
             {permissions.canCreate && (
-              <button
-                onClick={handleGenerateTestData}
-                disabled={isGenerating}
-                className="px-3 py-2 text-sm rounded-lg border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-              >
+              <button onClick={handleGenerateTestData} disabled={isGenerating} className="px-3 py-2 text-sm rounded-lg border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors">
                 {isGenerating ? '⏳ 生成中...' : '🗂️ テストデータ+200'}
               </button>
             )}
@@ -771,7 +666,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 件数表示 */}
         <div className="mb-4 flex items-center justify-between">
           <div className="text-sm text-gray-600 dark:text-gray-400" role="status" aria-live="polite">
             {tDelivery('totalCount', { count: orderedFilteredDeliveries.length })}
@@ -784,7 +678,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* テーブル */}
         {useVirtualScroll ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
             {isLoading ? <LoadingSpinner /> : (
@@ -893,8 +786,6 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
-
-            {/* ページネーション */}
             {totalPages > 1 && (
               <nav className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between" aria-label="ページネーション">
                 <div className="text-sm text-gray-700 dark:text-gray-300">ページ {currentPage} / {totalPages}</div>
@@ -908,7 +799,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* ── 配送登録/編集モーダル ── */}
       {modals.delivery && permissions.canCreate && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="modal-title">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -916,29 +806,16 @@ export default function Home() {
               {editingDelivery ? tDelivery('editDelivery') : tDelivery('addNew')}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-              {/* 氏名 */}
               <div>
-                <label htmlFor="delivery-name" className="block text-sm font-medium mb-1">
-                  {tDelivery('name')} <span className="text-red-500">*</span>
-                </label>
-                <input id="delivery-name" type="text" value={formData.name}
-                  onChange={e => { setFormData({ ...formData, name: e.target.value }); clearError('name'); }}
-                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${formErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
-                  aria-invalid={!!formErrors.name} />
+                <label htmlFor="delivery-name" className="block text-sm font-medium mb-1">{tDelivery('name')} <span className="text-red-500">*</span></label>
+                <input id="delivery-name" type="text" value={formData.name} onChange={e => { setFormData({ ...formData, name: e.target.value }); clearError('name'); }} className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${formErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} aria-invalid={!!formErrors.name} />
                 {formErrors.name && <p className="mt-1 text-sm text-red-600" role="alert">{formErrors.name}</p>}
               </div>
-              {/* 住所 */}
               <div>
-                <label htmlFor="delivery-address" className="block text-sm font-medium mb-1">
-                  {tDelivery('address')} <span className="text-red-500">*</span>
-                </label>
-                <input id="delivery-address" type="text" value={formData.address}
-                  onChange={e => { setFormData({ ...formData, address: e.target.value }); clearError('address'); }}
-                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${formErrors.address ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
-                  aria-invalid={!!formErrors.address} />
+                <label htmlFor="delivery-address" className="block text-sm font-medium mb-1">{tDelivery('address')} <span className="text-red-500">*</span></label>
+                <input id="delivery-address" type="text" value={formData.address} onChange={e => { setFormData({ ...formData, address: e.target.value }); clearError('address'); }} className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${formErrors.address ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} aria-invalid={!!formErrors.address} />
                 {formErrors.address && <p className="mt-1 text-sm text-red-600" role="alert">{formErrors.address}</p>}
               </div>
-              {/* ステータス */}
               <div>
                 <label htmlFor="delivery-status" className="block text-sm font-medium mb-1">{tDelivery('status')}</label>
                 <select id="delivery-status" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as Delivery['status'] })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
@@ -947,7 +824,6 @@ export default function Home() {
                   <option value="completed">{tStatus('completed')}</option>
                 </select>
               </div>
-              {/* 担当者 */}
               <div>
                 <label htmlFor="delivery-staff" className="block text-sm font-medium mb-1">担当者</label>
                 <select id="delivery-staff" value={formData.staffId ?? ''} onChange={e => setFormData({ ...formData, staffId: e.target.value || null })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
@@ -955,7 +831,6 @@ export default function Home() {
                   {staffList.filter(s => s.isActive).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
-              {/* 顧客 */}
               <div>
                 <label htmlFor="delivery-customer" className="block text-sm font-medium mb-1">顧客</label>
                 <select id="delivery-customer" value={formData.customerId ?? ''} onChange={e => setFormData({ ...formData, customerId: e.target.value || null })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
@@ -963,7 +838,6 @@ export default function Home() {
                   {customerList.filter(c => c.isActive).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              {/* 拠点 */}
               <div>
                 <label htmlFor="delivery-location" className="block text-sm font-medium mb-1">拠点</label>
                 <select id="delivery-location" value={formData.locationId ?? ''} onChange={e => setFormData({ ...formData, locationId: e.target.value || null })} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
@@ -971,31 +845,20 @@ export default function Home() {
                   {locationList.filter(l => l.isActive).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
-              {/* 配送日 */}
               <div>
-                <label htmlFor="delivery-date" className="block text-sm font-medium mb-1">
-                  {tDelivery('deliveryDate')} <span className="text-red-500">*</span>
-                </label>
-                <input id="delivery-date" type="date" value={formData.deliveryDate}
-                  onChange={e => { setFormData({ ...formData, deliveryDate: e.target.value }); clearError('deliveryDate'); }}
-                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${formErrors.deliveryDate ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
-                  aria-invalid={!!formErrors.deliveryDate} />
+                <label htmlFor="delivery-date" className="block text-sm font-medium mb-1">{tDelivery('deliveryDate')} <span className="text-red-500">*</span></label>
+                <input id="delivery-date" type="date" value={formData.deliveryDate} onChange={e => { setFormData({ ...formData, deliveryDate: e.target.value }); clearError('deliveryDate'); }} className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 ${formErrors.deliveryDate ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} aria-invalid={!!formErrors.deliveryDate} />
                 {formErrors.deliveryDate && <p className="mt-1 text-sm text-red-600" role="alert">{formErrors.deliveryDate}</p>}
               </div>
               <div className="flex gap-2 pt-4">
-                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  {editingDelivery ? tCommon('save') : tCommon('add')}
-                </button>
-                <button type="button" onClick={() => { closeModal('delivery'); clearAllErrors(); }} className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
-                  {tCommon('cancel')}
-                </button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">{editingDelivery ? tCommon('save') : tCommon('add')}</button>
+                <button type="button" onClick={() => { closeModal('delivery'); clearAllErrors(); }} className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">{tCommon('cancel')}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ── 各種モーダル ── */}
       <CsvExportModal isOpen={modals.export} deliveries={deliveries} filteredDeliveries={orderedFilteredDeliveries} selectedIds={selectedIds} onClose={() => closeModal('export')} />
 
       {modals.import && permissions.canImportCsv && (

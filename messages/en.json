@@ -20,7 +20,14 @@
     "backupRestore": "Backup / Restore",
     "presets": "Presets",
     "analytics": "Analytics",
-    "report": "Report"
+    "report": "Report",
+    "email": "Email",
+    "history": "History",
+    "customize": "Customize",
+    "master": "Master",
+    "roleAdmin": "Administrator",
+    "roleUser": "General User",
+    "logout": "Logout"  
   },
   "status": {
     "pending": "Pending",

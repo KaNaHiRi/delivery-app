@@ -20,7 +20,14 @@
     "backupRestore": "バックアップ/リストア",
     "presets": "プリセット",
     "analytics": "分析",
-    "report": "レポート"
+    "report": "レポート",
+    "email": "メール",
+    "history": "履歴",
+    "customize": "カスタマイズ",
+    "master": "マスタ",
+    "roleAdmin": "管理者",
+    "roleUser": "一般ユーザー",
+    "logout": "ログアウト"
   },
   "status": {
     "pending": "未着手",
