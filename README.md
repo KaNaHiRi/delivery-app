@@ -213,7 +213,7 @@ MIT License — 自由にご利用いただけます
 
 ## 👤 開発者
 
-**KAZU**  
+**KaNaHiRi**  
 医療システム部門 10年以上の経験を持つフルスタックエンジニア  
 C# / Delphi / WPF → Next.js / TypeScript にシフト中
 
