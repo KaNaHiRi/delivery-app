@@ -1,76 +1,53 @@
-# 🚚 配送管理システム（Delivery Management System）
+# 配送管理システム
 
-> **医療・クリニック向け** 配送・物品管理Webアプリケーション  
-> Next.js 15 + TypeScript + Prisma + SQLite で構築したフルスタックシステム
+配送業務の効率化を目的に開発したWebアプリケーションです。配送データの管理から通知・帳票出力まで、実務を想定した機能を一通り実装しています。
 
 [![CI/CD](https://github.com/KaNaHiRi/delivery-app/actions/workflows/ci.yml/badge.svg)](https://github.com/KaNaHiRi/delivery-app/actions)
 [![Deploy](https://img.shields.io/badge/deploy-vercel-black?logo=vercel)](https://delivery-app-delta-ecru.vercel.app)
-[![Tests](https://img.shields.io/badge/tests-74%20passed-brightgreen)](#テスト)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?logo=typescript)](https://www.typescriptlang.org/)
 
-## 🌐 デモ
+## デモ
 
-**デモURL**: https://delivery-app-delta-ecru.vercel.app
+**URL：** https://delivery-app-delta-ecru.vercel.app
 
 | アカウント | メール | パスワード | 権限 |
 |-----------|--------|-----------|------|
 | 管理者 | admin@clinic.com | admin123 | 全操作可 |
 | 一般ユーザー | tanaka@clinic.com | user123 | 閲覧・ステータス変更 |
 
----
+> ※デモ用アカウントです。個人情報は入力しないでください。
 
-## 📸 スクリーンショット
+## 主な機能
 
-> ※ デモサイトにてご確認ください
+### 配送管理
+- 配送データの登録・編集・削除・ステータス管理（未処理→配送中→完了）
+- キーワード・ステータス・日付範囲・拠点別フィルター
+- よく使う検索条件のプリセット保存
+- ドラッグ&ドロップによる表示順変更
 
-- ダッシュボード（統計・グラフ表示）
-- 配送一覧（ソート・フィルター・仮想スクロール）
-- メール通知機能
-- PDF帳票出力
+### 分析・レポート
+- rechartsによる統計ダッシュボード
+- jsPDF + html2canvasによるPDF帳票出力
+- Excel/CSVエクスポート
 
----
+### 通知・連携
+- 期限アラート・ステータス変更のブラウザ通知
+- Resend + React Emailによるメール通知
+- PWA対応（スマートフォンへのインストール・オフライン表示）
 
-## ✨ 主な機能
+### その他
+- RBAC（管理者 / 一般ユーザー 2段階権限）
+- 全操作の監査ログ記録
+- 日本語/英語切り替え（next-intl）
+- ダークモード対応
+- 大量データ対応の仮想スクロール（@tanstack/react-virtual）
+- 5秒〜1分間隔の自動データ更新
 
-### 📊 コア機能
-- **配送データ管理** — 登録・編集・削除・ステータス管理（未処理→配送中→完了）
-- **高度な検索・フィルター** — キーワード・ステータス・日付範囲・拠点別フィルター
-- **クイックフィルター** — 「今日」「今週」「期限超過」などワンクリック絞り込み
-- **フィルタープリセット** — よく使う条件を保存・再利用
-
-### 📈 分析・レポート
-- **ダッシュボード** — recharts によるリアルタイム統計グラフ
-- **カスタムダッシュボード** — ウィジェットのON/OFF・並び順変更
-- **PDF帳票出力** — jsPDF + html2canvas による配送票・レポート生成
-- **Excel/CSVエクスポート** — データ一括出力
-
-### 🔒 セキュリティ・認証
-- **NextAuth.js v5** による認証
-- **RBAC（ロールベースアクセス制御）** — 管理者 / 一般ユーザー 2段階権限
-- **操作履歴** — 全変更操作をAuditLogとして記録
-- **Sentry** によるエラー監視
-
-### 📧 通知機能
-- **ブラウザ通知** — 期限アラート・ステータス変更通知
-- **メール通知** — Resend + React Email による配送状況メール
-- **PWA対応** — スマートフォンへのインストール・オフライン表示
-
-### 🌏 その他
-- **国際化（i18n）** — 日本語 / 英語 切り替え（next-intl）
-- **ダークモード** — ライト/ダーク テーマ対応
-- **仮想スクロール** — 大量データでも高速表示（@tanstack/react-virtual）
-- **複数拠点対応** — 拠点ごとのデータ管理
-- **自動更新** — 5秒〜1分間隔の自動データリフレッシュ
-- **D&Dソート** — ドラッグ&ドロップで表示順変更
-
----
-
-## 🛠️ 技術スタック
+## 技術スタック
 
 ### フロントエンド
 | 技術 | バージョン | 用途 |
 |------|-----------|------|
-| Next.js | 15.1.5 | フレームワーク（App Router + Turbopack） |
+| Next.js | 15.1.5 | フレームワーク（App Router） |
 | TypeScript | 5.x | 型安全な開発 |
 | Tailwind CSS | v3 | スタイリング |
 | recharts | latest | グラフ・チャート |
@@ -88,7 +65,7 @@
 | 技術 | 用途 |
 |------|------|
 | Vercel | ホスティング・自動デプロイ |
-| GitHub Actions | CI/CD パイプライン |
+| GitHub Actions | CI/CDパイプライン |
 | Sentry | エラー監視 |
 | Resend | メール送信 |
 
@@ -99,122 +76,68 @@
 | Playwright | E2Eテスト（12件） |
 | Storybook | UIコンポーネントカタログ |
 
----
-
-## 🚀 ローカル起動手順
+## ローカル起動手順
 
 ### 前提条件
 - Node.js 18以上
-- npm または yarn
 
 ### インストール
+
 ```bash
-# リポジトリのクローン
 git clone https://github.com/KaNaHiRi/delivery-app.git
 cd delivery-app
-
-# 依存関係インストール
 npm install
-
-# 環境変数の設定
 cp .env.example .env.local
-# .env.local を編集してください（後述）
-
-# DBのセットアップ
 npx prisma migrate dev
 npx prisma db seed
-
-# 開発サーバー起動
 npm run dev
 ```
 
-ブラウザで http://localhost:3000 を開く
+ブラウザで http://localhost:3000 を開いてください。
 
 ### 環境変数（.env.local）
+
 ```env
-# データベース
 DATABASE_URL=file:./prisma/dev.db
-
-# 認証（openssl rand -base64 32 で生成）
 AUTH_SECRET=your-secret-here
-
-# Sentry（省略可）
-NEXT_PUBLIC_SENTRY_DSN=
-SENTRY_AUTH_TOKEN=
-
-# メール送信（Resend）
 RESEND_API_KEY=re_xxxxxxxxxx
 EMAIL_FROM=onboarding@resend.dev
 ```
 
----
+## テスト
 
-## 🧪 テスト
 ```bash
 # 単体テスト（74件）
 npm test
 
-# E2Eテスト（Playwright）
+# E2Eテスト
 npx playwright test
 
 # Storybook
 npm run storybook
 ```
 
----
+## プロジェクト構成
 
-## 📁 プロジェクト構成
 ```
-my-delivery-app/
+delivery-app/
 ├── app/
-│   ├── api/          # API Routes（RESTful）
-│   ├── components/   # 25+ UIコンポーネント
+│   ├── api/          # API Routes
+│   ├── components/   # UIコンポーネント
 │   ├── hooks/        # カスタムHooks
 │   ├── types/        # TypeScript型定義
-│   ├── utils/        # ユーティリティ関数
-│   └── page.tsx      # メインページ
-├── lib/              # DB・API クライアント
+│   └── utils/        # ユーティリティ
+├── lib/              # DB・APIクライアント
 ├── prisma/           # スキーマ・マイグレーション
-├── e2e/              # Playwright テスト
-└── docs/             # 詳細ドキュメント
+└── e2e/              # Playwrightテスト
 ```
 
-詳細は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照
+## 開発背景
 
----
+本業で業務システムの開発・保守を長年担当してきた経験から、実務で使えるレベルの品質を意識して開発しました。CI/CDの整備やテストカバレッジの確保など、個人開発でも運用を見据えた実装を心がけています。
 
-## 📖 ドキュメント
+## 作者
 
-| ドキュメント | 内容 |
-|-------------|------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | システム設計・データフロー |
-| [API.md](docs/API.md) | API エンドポイント仕様 |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | 本番デプロイ手順 |
+**KaNaHiRi**
 
----
-
-## 🏥 医療システムへの応用
-
-このシステムは配送管理を例に構築していますが、以下の用途に転用可能です：
-
-- **クリニック向け** 患者呼び出し・検査フロー管理
-- **調剤薬局向け** 薬品在庫・処方管理
-- **訪問医療向け** 訪問スケジュール・担当者管理
-
-業務システム開発のご相談は [CrowdWorks](https://crowdworks.jp) / [Coconala](https://coconala.com) にてご依頼ください。
-
----
-
-## 📝 ライセンス
-
-MIT License — 自由にご利用いただけます
-
----
-
-## 👤 開発者
-
-**KaNaHiRi**  
-医療システム部門 10年以上の経験を持つフルスタックエンジニア  
-C# / Delphi / WPF → Next.js / TypeScript にシフト中
-
-[![CrowdWorks](https://img.shields.io/badge/CrowdWorks-受注中-orange)](https://crowdworks.jp/public/employees/6351824?ref=login_header)
+ポートフォリオ：https://portfolio-kahahiris-projects.vercel.app
